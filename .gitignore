@@ -1,0 +1,22 @@
+# Зависимости
+node_modules/
+
+# Загруженные документы (будут храниться на сервере)
+server/uploads/
+server/documents.json
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Логи
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+
+# Временные файлы
+*.tmp
+*.temp

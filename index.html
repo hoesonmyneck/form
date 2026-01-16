@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Формы отчетности МТСЗН РК</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Библиотека для генерации DOCX -->
+    <script src="https://unpkg.com/docx@8.2.2/build/index.umd.js"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="emblem">🏛️</div>
+                <div class="title-block">
+                    <h1>Министерство труда и социальной защиты населения</h1>
+                    <p>Республика Казахстан</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="nav-tabs">
+        <button class="tab-btn active" data-tab="form1">Форма № 1</button>
+        <button class="tab-btn" data-tab="form2">Форма № 2</button>
+        <button class="tab-btn" data-tab="form3">Форма № 3</button>
+        <button class="tab-btn" data-tab="form4">Форма № 4</button>
+    </nav>
+
+    <main class="container">
+        <!-- Форма № 1 -->
+        <section id="form1" class="form-section active">
+            <div class="form-header">
+                <div class="appendix-info">
+                    <p>Приложение</p>
+                    <p>к приказу руководителя аппарата</p>
+                    <p>Министерства труда</p>
+                    <p>и социальной защиты населения</p>
+                    <p>Республики Казахстан</p>
+                    <div class="date-number">
+                        <p>от <input type="text" class="inline-input date-input" placeholder="__"> декабря <input type="number" class="inline-input year-input" value="2024" min="2020" max="2030"> года</p>
+                        <p>№ <input type="text" class="inline-input number-input" placeholder="_______"></p>
+                    </div>
+                </div>
+                <h2 class="form-title">Форма № 1</h2>
+                <h3 class="form-subtitle">Отчет о движении гражданских дел</h3>
+                <div class="form-meta">
+                    <p>по состоянию на <input type="text" class="inline-input" placeholder="________"> 20<input type="text" class="inline-input small" placeholder="__" maxlength="2"> года по</p>
+                    <input type="text" class="org-input" placeholder="(наименование организации)">
+                </div>
+            </div>
+
+            <div class="table-container">
+                <!-- В качестве истцов -->
+                <h4 class="section-header">В качестве истцов</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Истец</th>
+                            <th>Ответчик</th>
+                            <th>Суть спора (предмет, сумма иска и другие)</th>
+                            <th>Судебный акт первой инстанции</th>
+                            <th>Апелляция</th>
+                            <th>Кассация</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form1-plaintiffs">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form1-plaintiffs">+ Добавить строку</button>
+
+                <!-- В качестве ответчиков -->
+                <h4 class="section-header">В качестве ответчиков</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Истец</th>
+                            <th>Ответчик</th>
+                            <th>Суть спора (предмет, сумма иска и другие)</th>
+                            <th>Судебный акт первой инстанции</th>
+                            <th>Апелляция</th>
+                            <th>Кассация</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form1-defendants">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form1-defendants">+ Добавить строку</button>
+
+                <!-- В качестве третьего лица -->
+                <h4 class="section-header">В качестве третьего лица</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Истец</th>
+                            <th>Ответчик</th>
+                            <th>Суть спора (предмет, сумма иска и другие)</th>
+                            <th>Судебный акт первой инстанции</th>
+                            <th>Апелляция</th>
+                            <th>Кассация</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form1-thirdparty">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form1-thirdparty">+ Добавить строку</button>
+            </div>
+        </section>
+
+        <!-- Форма № 2 -->
+        <section id="form2" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">Форма № 2</h2>
+                <h3 class="form-subtitle">Отчет о движении административных дел</h3>
+                <div class="form-meta">
+                    <p>по состоянию на <input type="number" class="inline-input small" placeholder="4" min="1" max="4"> квартал <input type="number" class="inline-input year-input" value="2025" min="2020" max="2030"> года по</p>
+                    <input type="text" class="org-input" placeholder="(наименование организации)">
+                </div>
+            </div>
+
+            <div class="table-container">
+                <!-- В качестве истцов -->
+                <h4 class="section-header">В качестве истцов</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Истец</th>
+                            <th>Ответчик</th>
+                            <th>Суть спора (предмет, сумма иска и другие)</th>
+                            <th>Судебный акт первой инстанции</th>
+                            <th>Апелляция</th>
+                            <th>Кассация</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form2-plaintiffs">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form2-plaintiffs">+ Добавить строку</button>
+
+                <!-- В качестве ответчиков -->
+                <h4 class="section-header">В качестве ответчиков</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Истец</th>
+                            <th>Ответчик</th>
+                            <th>Суть спора (предмет, сумма иска и другие)</th>
+                            <th>Судебный акт первой инстанции</th>
+                            <th>Апелляция</th>
+                            <th>Кассация</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form2-defendants">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form2-defendants">+ Добавить строку</button>
+
+                <!-- В качестве третьего лица -->
+                <h4 class="section-header">В качестве третьего лица</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Истец</th>
+                            <th>Ответчик</th>
+                            <th>Суть спора (предмет, сумма иска и другие)</th>
+                            <th>Судебный акт первой инстанции</th>
+                            <th>Апелляция</th>
+                            <th>Кассация</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form2-thirdparty">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form2-thirdparty">+ Добавить строку</button>
+            </div>
+        </section>
+
+        <!-- Форма № 3 -->
+        <section id="form3" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">Форма № 3</h2>
+                <h3 class="form-subtitle">Отчет о движении запросов, направленных на согласование права подачи апелляционного, кассационного обжалования судебных актов</h3>
+                <div class="form-meta">
+                    <p>по состоянию на <input type="number" class="inline-input small" placeholder="4" min="1" max="4"> квартал <input type="number" class="inline-input year-input" value="2025" min="2020" max="2030"> года по</p>
+                    <input type="text" class="org-input" placeholder="(наименование организации)">
+                </div>
+            </div>
+
+            <div class="table-container">
+                <!-- Апелляционная инстанция -->
+                <h4 class="section-header">Апелляционная инстанция</h4>
+                <table class="report-table form3-table">
+                    <thead>
+                        <tr>
+                            <th rowspan="3">Предмет спора</th>
+                            <th rowspan="3">Количество<br>квартал/год*</th>
+                            <th colspan="6">Решение / определение суда</th>
+                            <th rowspan="3">Примечание</th>
+                        </tr>
+                        <tr>
+                            <th colspan="3">За отчетный квартал</th>
+                            <th colspan="3">С начала года</th>
+                        </tr>
+                        <tr>
+                            <th>Согласовано*</th>
+                            <th>Отказано*</th>
+                            <th>На рассмотрении*</th>
+                            <th>Согласовано*</th>
+                            <th>Отказано*</th>
+                            <th>На рассмотрении*</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form3-appeal">
+                        <tr>
+                            <td class="text-left"><strong>Всего</strong></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">Из них:<br>1) иски по вопросам социальных выплат</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">2) иски по вопросам МСЭ</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">3) иски по трудовым спорам</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">4) иски по вопросам миграции</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">5) иски, предъявленные по другим причинам</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Кассационная инстанция -->
+                <h4 class="section-header">Кассационная инстанция</h4>
+                <table class="report-table form3-table">
+                    <thead>
+                        <tr>
+                            <th rowspan="3">Предмет спора</th>
+                            <th rowspan="3">Количество<br>квартал/год*</th>
+                            <th colspan="6">Решение / определение суда</th>
+                            <th rowspan="3">Примечание</th>
+                        </tr>
+                        <tr>
+                            <th colspan="3">За отчетный квартал</th>
+                            <th colspan="3">С начала года</th>
+                        </tr>
+                        <tr>
+                            <th>Согласовано*</th>
+                            <th>Отказано*</th>
+                            <th>На рассмотрении*</th>
+                            <th>Согласовано*</th>
+                            <th>Отказано*</th>
+                            <th>На рассмотрении*</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form3-cassation">
+                        <tr>
+                            <td class="text-left"><strong>Всего</strong></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">Из них:<br>1) иски по вопросам социальных выплат</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">2) иски по вопросам МСЭ</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">3) иски по трудовым спорам</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">4) иски по вопросам миграции</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                        <tr>
+                            <td class="text-left">5) иски, предъявленные по другим причинам</td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><input type="text" class="fraction-input" placeholder="/ "></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="footnote">
+                    <p>* в графе 2,3,4,5,6,7,8 цифры записываются с помощью дробной черты. Над дробной чертой записывается количество запросов, направленных на согласование за отчетный квартал, под дробной чертой записывается количество направленных на согласование с начала года</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Форма № 4 -->
+        <section id="form4" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">Форма № 4</h2>
+                <h3 class="form-subtitle">Отчет об актах судебных и контролирующих государственных органов</h3>
+                <div class="form-meta">
+                    <p>по состоянию на <input type="text" class="inline-input" placeholder="________"> 20<input type="text" class="inline-input small" placeholder="__" maxlength="2"> года по</p>
+                    <input type="text" class="org-input" placeholder="(наименование организации)">
+                </div>
+            </div>
+
+            <div class="table-container">
+                <!-- Частные определения суда -->
+                <h4 class="section-header">Частные определения суда</h4>
+                <table class="report-table form4-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Вид акта и наименование органа, направившего акт</th>
+                            <th>Вид нарушения, явившейся основанием для вынесения акта</th>
+                            <th>Принятые меры по устранению причин и условий, способствовавших вынесению акта<br><small>(необходимо указать документы подтверждающие исполнение акта)</small></th>
+                            <th>Обжалование актов</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form4-court-definitions">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form4-court-definitions">+ Добавить строку</button>
+
+                <!-- Денежное взыскание суда -->
+                <h4 class="section-header">Денежное взыскание суда</h4>
+                <table class="report-table form4-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Вид акта и наименование органа, направившего акт</th>
+                            <th>Вид нарушения, явившейся основанием для вынесения акта</th>
+                            <th>Принятые меры по устранению причин и условий, способствовавших вынесению акта<br><small>(необходимо указать документы подтверждающие исполнение акта)</small></th>
+                            <th>Обжалование актов</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form4-monetary">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form4-monetary">+ Добавить строку</button>
+
+                <!-- Акты прокурорского надзора -->
+                <h4 class="section-header">Акты прокурорского надзора</h4>
+                <table class="report-table form4-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Вид акта и наименование органа, направившего акт</th>
+                            <th>Вид нарушения, явившейся основанием для вынесения акта</th>
+                            <th>Принятые меры по устранению причин и условий, способствовавших вынесению акта<br><small>(необходимо указать документы подтверждающие исполнение акта)</small></th>
+                            <th>Обжалование актов</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form4-prosecutor">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form4-prosecutor">+ Добавить строку</button>
+
+                <!-- Предписание других государственных органов -->
+                <h4 class="section-header">Предписание других государственных органов</h4>
+                <table class="report-table form4-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Вид акта и наименование органа, направившего акт</th>
+                            <th>Вид нарушения, явившейся основанием для вынесения акта</th>
+                            <th>Принятые меры по устранению причин и условий, способствовавших вынесению акта<br><small>(необходимо указать документы подтверждающие исполнение акта)</small></th>
+                            <th>Обжалование актов</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form4-prescriptions">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form4-prescriptions">+ Добавить строку</button>
+
+                <!-- Административные штрафы -->
+                <h4 class="section-header">Административные штрафы наложенные на госорган/организацию</h4>
+                <table class="report-table form4-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Вид акта и наименование органа, направившего акт</th>
+                            <th>Вид нарушения, явившейся основанием для вынесения акта</th>
+                            <th>Принятые меры по устранению причин и условий, способствовавших вынесению акта<br><small>(необходимо указать документы подтверждающие исполнение акта)</small></th>
+                            <th>Обжалование актов</th>
+                            <th>Примечание</th>
+                        </tr>
+                        <tr class="col-numbers">
+                            <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td>
+                        </tr>
+                    </thead>
+                    <tbody id="form4-fines">
+                        <tr>
+                            <td>1</td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                            <td><textarea></textarea></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-row-btn" data-table="form4-fines">+ Добавить строку</button>
+            </div>
+        </section>
+
+        <!-- Кнопки действий -->
+        <div class="actions">
+            <button class="btn btn-save" id="saveBtn">
+                <span class="btn-icon">💾</span>
+                Сохранить черновик
+            </button>
+            <button class="btn btn-docx" id="downloadDocxBtn" onclick="downloadDocx(getCurrentFormNumber())">
+                <span class="btn-icon">📝</span>
+                Скачать текущую форму
+            </button>
+            <button class="btn btn-all-docs" id="downloadAllBtn" onclick="downloadAllDocuments()">
+                <span class="btn-icon">📥</span>
+                Скачать все 4 формы
+            </button>
+            <button class="btn btn-submit" id="submitBtn">
+                <span class="btn-icon">✅</span>
+                Отправить на сервер
+            </button>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>© 2025 Министерство труда и социальной защиты населения Республики Казахстан</p>
+    </footer>
+
+    <!-- Модальное окно успешной отправки -->
+    <div class="modal" id="successModal">
+        <div class="modal-content">
+            <div class="modal-icon">✅</div>
+            <h3>Форма успешно отправлена!</h3>
+            <p>Ваши данные были сохранены и отправлены на обработку.</p>
+            <button class="btn btn-primary" onclick="closeModal()">Закрыть</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="docx-generator.js"></script>
+</body>
+</html>
