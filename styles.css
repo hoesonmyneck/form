@@ -461,7 +461,14 @@ body {
    КНОПКА ДОБАВЛЕНИЯ СТРОКИ
    ===================================================== */
 
-.add-row-btn {
+.row-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.add-row-btn,
+.remove-row-btn {
     font-family: var(--font-sans);
     font-size: 0.85rem;
     padding: 0.5rem 1rem;
@@ -471,13 +478,29 @@ body {
     cursor: pointer;
     border-radius: 8px;
     transition: all 0.3s;
-    margin-bottom: 1rem;
 }
 
 .add-row-btn:hover {
     border-color: var(--accent);
     color: var(--accent);
     background: rgba(37, 99, 235, 0.05);
+}
+
+.remove-row-btn:hover {
+    border-color: var(--error);
+    color: var(--error);
+    background: rgba(220, 38, 38, 0.05);
+}
+
+.remove-row-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.remove-row-btn:disabled:hover {
+    border-color: var(--border);
+    color: var(--text-muted);
+    background: transparent;
 }
 
 /* =====================================================

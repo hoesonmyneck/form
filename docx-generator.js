@@ -740,8 +740,79 @@ async function downloadAllDocuments() {
     }
 }
 
+/**
+ * Отправка ВСЕХ 4 форм на сервер
+ */
+async function submitAllFormsToServer() {
+    try {
+        showNotification('Генерация и отправка всех документов...', 'info');
+        
+        const data = collectFormData();
+        const timestamp = new Date().toISOString().slice(0, 10);
+        
+        // Все 4 формы
+        const forms = [
+            { num: '1', name: 'Форма_1_Гражданские_дела', generator: generateForm1Document },
+            { num: '2', name: 'Форма_2_Административные_дела', generator: generateForm2Document },
+            { num: '3', name: 'Форма_3_Запросы_на_согласование', generator: generateForm3Document },
+            { num: '4', name: 'Форма_4_Акты_судебных_органов', generator: generateForm4Document }
+        ];
+        
+        let successCount = 0;
+        
+        for (const form of forms) {
+            try {
+                const doc = await form.generator(data);
+                const blob = await docx.Packer.toBlob(doc);
+                const filename = `${form.name}_${timestamp}.docx`;
+                
+                // Создаём FormData для отправки файла
+                const formData = new FormData();
+                formData.append('document', blob, filename);
+                formData.append('metadata', JSON.stringify({
+                    formNumber: form.num,
+                    submittedAt: new Date().toISOString(),
+                    organization: data.forms.form1?.header?.input_5 || 'Не указано'
+                }));
+                
+                // Отправляем на сервер
+                const response = await fetch('/api/documents/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    successCount++;
+                }
+            } catch (err) {
+                console.error(`Ошибка отправки ${form.name}:`, err);
+            }
+        }
+        
+        if (successCount === 4) {
+            // Показываем успех
+            document.getElementById('successModal').classList.add('active');
+            showNotification('Все 4 формы успешно сохранены!', 'success');
+            
+            // Очищаем localStorage после успешной отправки
+            localStorage.removeItem('mtszn_forms_data');
+            localStorage.removeItem('mtszn_forms_timestamp');
+        } else if (successCount > 0) {
+            showNotification(`Сохранено ${successCount} из 4 форм`, 'info');
+        } else {
+            throw new Error('Не удалось сохранить формы');
+        }
+        
+    } catch (error) {
+        console.error('Ошибка отправки:', error);
+        showNotification('Ошибка при сохранении. Проверьте подключение.', 'error');
+        throw error;
+    }
+}
+
 // Экспортируем функции глобально
 window.exportToDocx = exportToDocx;
 window.downloadDocx = downloadDocx;
 window.downloadAllDocuments = downloadAllDocuments;
 window.submitDocxToServer = submitDocxToServer;
+window.submitAllFormsToServer = submitAllFormsToServer;

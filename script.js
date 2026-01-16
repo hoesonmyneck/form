@@ -49,11 +49,27 @@ function initTabs() {
 // =====================================================
 
 function initAddRowButtons() {
+    // Кнопки добавления строк
     document.querySelectorAll('.add-row-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const tableId = btn.dataset.table;
             addRow(tableId);
+            updateRemoveButtonState(tableId);
         });
+    });
+    
+    // Кнопки удаления строк
+    document.querySelectorAll('.remove-row-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tableId = btn.dataset.table;
+            removeRow(tableId);
+            updateRemoveButtonState(tableId);
+        });
+    });
+    
+    // Инициализируем состояние кнопок удаления
+    document.querySelectorAll('.remove-row-btn').forEach(btn => {
+        updateRemoveButtonState(btn.dataset.table);
     });
 }
 
@@ -101,6 +117,55 @@ function addRow(tableId) {
     }
     
     showNotification('Строка добавлена', 'success');
+}
+
+function removeRow(tableId) {
+    const tbody = document.getElementById(tableId);
+    if (!tbody) return;
+    
+    const rows = tbody.querySelectorAll('tr');
+    
+    // Нельзя удалить последнюю строку
+    if (rows.length <= 1) {
+        showNotification('Нельзя удалить последнюю строку', 'error');
+        return;
+    }
+    
+    // Удаляем последнюю строку
+    const lastRow = rows[rows.length - 1];
+    lastRow.style.animation = 'fadeIn 0.3s ease reverse';
+    
+    setTimeout(() => {
+        lastRow.remove();
+        // Обновляем нумерацию
+        renumberRows(tableId);
+        showNotification('Строка удалена', 'success');
+    }, 200);
+}
+
+function renumberRows(tableId) {
+    const tbody = document.getElementById(tableId);
+    if (!tbody) return;
+    
+    const rows = tbody.querySelectorAll('tr');
+    rows.forEach((row, index) => {
+        const firstCell = row.querySelector('td:first-child');
+        if (firstCell) {
+            firstCell.textContent = index + 1;
+        }
+    });
+}
+
+function updateRemoveButtonState(tableId) {
+    const tbody = document.getElementById(tableId);
+    if (!tbody) return;
+    
+    const rowCount = tbody.querySelectorAll('tr').length;
+    const removeBtn = document.querySelector(`.remove-row-btn[data-table="${tableId}"]`);
+    
+    if (removeBtn) {
+        removeBtn.disabled = rowCount <= 1;
+    }
 }
 
 // =====================================================
@@ -258,14 +323,8 @@ function restoreFormData(data) {
 // =====================================================
 
 function initButtons() {
-    // Сохранить черновик
-    document.getElementById('saveBtn').addEventListener('click', () => {
-        saveToLocalStorage();
-        showNotification('Черновик сохранен', 'success');
-    });
-    
-    // Отправить форму
-    document.getElementById('submitBtn').addEventListener('click', submitForm);
+    // Сохранить (черновик + отправка на сервер)
+    document.getElementById('saveAndSubmitBtn').addEventListener('click', saveAndSubmitAll);
 }
 
 /**
@@ -278,7 +337,10 @@ function getCurrentFormNumber() {
     return tabId.replace('form', '');
 }
 
-async function submitForm() {
+/**
+ * Сохранить черновик + отправить ВСЕ формы на сервер
+ */
+async function saveAndSubmitAll() {
     const data = collectFormData();
     
     // Валидация - проверяем, заполнено ли хоть что-то
@@ -289,22 +351,25 @@ async function submitForm() {
         return;
     }
     
+    const btn = document.getElementById('saveAndSubmitBtn');
+    
     try {
         // Показываем индикатор загрузки
-        const submitBtn = document.getElementById('submitBtn');
-        submitBtn.innerHTML = '<span class="btn-icon">⏳</span> Отправка...';
-        submitBtn.disabled = true;
+        btn.innerHTML = '<span class="btn-icon">⏳</span> Сохранение...';
+        btn.disabled = true;
         
-        // Отправляем DOCX на сервер
-        await submitDocxToServer(getCurrentFormNumber());
+        // 1. Сохраняем черновик локально
+        saveToLocalStorage();
+        
+        // 2. Отправляем ВСЕ формы на сервер (не только текущую)
+        await submitAllFormsToServer();
         
     } catch (error) {
-        showNotification('Ошибка при отправке. Попробуйте позже.', 'error');
-        console.error('Submit error:', error);
+        showNotification('Ошибка при сохранении. Попробуйте позже.', 'error');
+        console.error('Save error:', error);
     } finally {
-        const submitBtn = document.getElementById('submitBtn');
-        submitBtn.innerHTML = '<span class="btn-icon">✅</span> Отправить на сервер';
-        submitBtn.disabled = false;
+        btn.innerHTML = '<span class="btn-icon">💾</span> Сохранить';
+        btn.disabled = false;
     }
 }
 
