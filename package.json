@@ -4,7 +4,7 @@
   "description": "Формы отчетности МТСЗН РК",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
+    "start": "node server/server-simple-auth.js",
     "dev": "nodemon server/server.js",
     "test": "node server/server-simple-auth.js",
     "test:dev": "nodemon server/server-simple-auth.js",
