@@ -75,6 +75,38 @@ body {
 .header-content {
     max-width: 1400px;
     margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: white;
+    font-size: 0.95rem;
+}
+
+.user-info span {
+    font-weight: 600;
+}
+
+.btn-logout, .btn-admin {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-family: var(--font-sans);
+    transition: all 0.3s ease;
+}
+
+.btn-logout:hover, .btn-admin:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
 }
 
 .logo {
@@ -289,26 +321,38 @@ body {
 
 .org-input {
     font-family: var(--font-sans);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     width: 100%;
-    max-width: 600px;
-    padding: 0.5rem;
-    border: none;
-    border-bottom: 1px solid var(--border-dark);
-    background: transparent;
-    text-align: center;
+    max-width: none; /* Убираем ограничение */
+    min-height: 3rem; /* Минимальная высота */
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: white;
+    text-align: left; /* Выравнивание по левому краю */
     margin-top: 0.5rem;
+    line-height: 1.4;
+    word-wrap: break-word;
+    white-space: normal; /* Разрешаем перенос строк */
+    resize: vertical; /* Позволяем изменять высоту вручную */
 }
 
 .org-input:focus {
     outline: none;
-    border-bottom-color: var(--primary);
-    border-bottom-width: 2px;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(26, 54, 93, 0.1);
 }
 
 .org-input::placeholder {
     color: var(--text-muted);
     font-style: italic;
+}
+
+/* Для заблокированных полей */
+.org-input:read-only {
+    background: #f5f5f5;
+    color: var(--text);
+    cursor: not-allowed;
 }
 
 /* =====================================================
@@ -679,6 +723,11 @@ body {
     margin-bottom: 1.5rem;
 }
 
+.modal-content .btn {
+    margin: 0 auto;
+    display: inline-flex;
+}
+
 /* =====================================================
    АДАПТИВНОСТЬ
    ===================================================== */
@@ -852,4 +901,90 @@ body {
     background: #dbeafe;
     color: #1e40af;
     border-left: 4px solid var(--accent);
+}
+
+/* =====================================================
+   ЗАГРУЗКА ФАЙЛОВ
+   ===================================================== */
+
+.file-upload-section {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    border: 1px dashed #cbd5e1;
+}
+
+.file-upload-label {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--accent);
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.file-upload-label:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.file-input {
+    display: none;
+}
+
+.uploaded-files {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.file-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.file-badge-name {
+    color: var(--text);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-badge-remove {
+    color: var(--error);
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.file-badge-remove:hover {
+    color: #991b1b;
+}
+
+/* Ссылки на файлы в админке */
+.file-link {
+    display: inline-block;
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 0.25rem 0;
+}
+
+.file-link:hover {
+    text-decoration: underline;
+    color: #1d4ed8;
 }

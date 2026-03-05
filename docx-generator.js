@@ -88,7 +88,7 @@ async function generateForm1Document(data) {
                 }),
                 
                 // Таблица истцов
-                createReportTable(tables['form1-plaintiffs'] || []),
+                createReportTable((tables['form1-plaintiffs']?.rows || tables['form1-plaintiffs']) || []),
                 
                 new Paragraph({ children: [] }),
                 
@@ -98,7 +98,7 @@ async function generateForm1Document(data) {
                     children: [new TextRun({ text: "В качестве ответчиков", bold: true, size: 22 })]
                 }),
                 
-                createReportTable(tables['form1-defendants'] || []),
+                createReportTable((tables['form1-defendants']?.rows || tables['form1-defendants']) || []),
                 
                 new Paragraph({ children: [] }),
                 
@@ -108,7 +108,7 @@ async function generateForm1Document(data) {
                     children: [new TextRun({ text: "В качестве третьего лица", bold: true, size: 22 })]
                 }),
                 
-                createReportTable(tables['form1-thirdparty'] || []),
+                createReportTable((tables['form1-thirdparty']?.rows || tables['form1-thirdparty']) || []),
             ]
         }]
     });
@@ -156,7 +156,7 @@ async function generateForm2Document(data) {
                     alignment: AlignmentType.CENTER,
                     children: [new TextRun({ text: "В качестве истцов", bold: true, size: 22 })]
                 }),
-                createReportTable(tables['form2-plaintiffs'] || []),
+                createReportTable((tables['form2-plaintiffs']?.rows || tables['form2-plaintiffs']) || []),
                 
                 new Paragraph({ children: [] }),
                 
@@ -164,7 +164,7 @@ async function generateForm2Document(data) {
                     alignment: AlignmentType.CENTER,
                     children: [new TextRun({ text: "В качестве ответчиков", bold: true, size: 22 })]
                 }),
-                createReportTable(tables['form2-defendants'] || []),
+                createReportTable((tables['form2-defendants']?.rows || tables['form2-defendants']) || []),
                 
                 new Paragraph({ children: [] }),
                 
@@ -172,7 +172,7 @@ async function generateForm2Document(data) {
                     alignment: AlignmentType.CENTER,
                     children: [new TextRun({ text: "В качестве третьего лица", bold: true, size: 22 })]
                 }),
-                createReportTable(tables['form2-thirdparty'] || []),
+                createReportTable((tables['form2-thirdparty']?.rows || tables['form2-thirdparty']) || []),
             ]
         }]
     });
@@ -187,8 +187,8 @@ async function generateForm3Document(data) {
     const { Document, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, WidthType, BorderStyle } = docx;
     
     const headerData = data.forms.form3.header;
-    const appealData = data.forms.form3.tables['form3-appeal'] || [];
-    const cassationData = data.forms.form3.tables['form3-cassation'] || [];
+    const appealData = (data.forms.form3.tables['form3-appeal']?.rows || data.forms.form3.tables['form3-appeal']) || [];
+    const cassationData = (data.forms.form3.tables['form3-cassation']?.rows || data.forms.form3.tables['form3-cassation']) || [];
     
     const quarter = headerData.input_0 || '4';
     const year = headerData.input_1 || '2025';
@@ -310,7 +310,7 @@ async function generateForm4Document(data) {
                 alignment: AlignmentType.CENTER,
                 children: [new TextRun({ text: section.title, bold: true, size: 22 })]
             }),
-            createForm4Table(tables[section.tableId] || []),
+            createForm4Table((tables[section.tableId]?.rows || tables[section.tableId]) || []),
             new Paragraph({ children: [] })
         );
     });
@@ -775,9 +775,15 @@ async function submitAllFormsToServer() {
                     organization: data.forms.form1?.header?.input_5 || 'Не указано'
                 }));
                 
-                // Отправляем на сервер
+                // Получаем токен авторизации
+                const token = localStorage.getItem('accessToken');
+                
+                // Отправляем на сервер с токеном
                 const response = await fetch('/api/documents/upload', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: formData
                 });
                 

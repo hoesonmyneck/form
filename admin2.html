@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ-панель - Планы работы</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1>🔐 Админ-панель - Планы работы департаментов</h1>
+            <div class="header-actions" style="display: flex; gap: 1rem;">
+                <a href="/index2" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem;">📝 К формам</a>
+                <button onclick="location.reload()" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem;">🔄 Обновить</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="filters" style="padding: 1.5rem; background: white; border-radius: 8px; margin-bottom: 2rem;">
+            <h3>Просмотр данных по регионам</h3>
+            <div style="margin-top: 1rem;">
+                <label for="regionSelect" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Выберите регион:</label>
+                <select id="regionSelect" onchange="showRegionData()" style="width: 100%; max-width: 500px; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 1rem; cursor: pointer;">
+                    <option value="">[Выбрать регион]</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="region-data-container" style="display: none; background: white; padding: 2rem; border-radius: 8px; margin-bottom: 2rem;">
+            <h2 id="region-title" style="margin-bottom: 1.5rem;"></h2>
+            <table class="report-table" id="region-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">№</th>
+                        <th>План</th>
+                        <th style="width: 150px;">Плановый показатель (%)</th>
+                        <th style="width: 150px;">Фактический показатель (%)</th>
+                        <th style="width: 150px;">Коэффициент исполнения (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="region-tbody">
+                </tbody>
+            </table>
+        </div>
+
+        <nav class="nav-tabs">
+            <button class="tab-btn active" data-tab="plan1" onclick="switchTab(1)">План № 1</button>
+            <button class="tab-btn" data-tab="plan2" onclick="switchTab(2)">План № 2</button>
+            <button class="tab-btn" data-tab="plan3" onclick="switchTab(3)">План № 3</button>
+            <button class="tab-btn" data-tab="plan4" onclick="switchTab(4)">План № 4</button>
+            <button class="tab-btn" data-tab="plan5" onclick="switchTab(5)">План № 5</button>
+            <button class="tab-btn" data-tab="plan6" onclick="switchTab(6)">План № 6</button>
+            <button class="tab-btn" data-tab="plan7" onclick="switchTab(7)">План № 7</button>
+            <button class="tab-btn" data-tab="plan8" onclick="switchTab(8)">План № 8</button>
+        </nav>
+
+        <div id="plans-container"></div>
+    </div>
+
+    <script>
+        const REGIONS = [
+            'г. Астана', 'г. Алматы', 'г. Шымкент',
+            'Акмолинская область', 'Актюбинская область', 'Алматинская область',
+            'Атырауская область', 'Восточно-Казахстанская область', 'Жамбылская область',
+            'Западно-Казахстанская область', 'Карагандинская область', 'Костанайская область',
+            'Кызылординская область', 'Мангистауская область', 'Павлодарская область',
+            'Северо-Казахстанская область', 'Туркестанская область', 'Область Абай',
+            'Область Улытау', 'Область Жетысу'
+        ];
+
+        const PLAN_TITLES = {
+            1: 'Реализация Дорожной карты партии «Amanat» по обеспечению доступности',
+            2: 'Мониторинг доли реализованной социальной части программ абилитации',
+            3: 'Своевременная организация проверочных мероприятий',
+            4: 'Достижение целевого показателя по заочному проактивному оказанию услуги (45%)',
+            5: 'Рассмотрение не менее 50% дел первичного освидетельствования ОМК МСЭ',
+            6: 'Направление поступивших формуляров на подтверждение',
+            7: 'Проведение проверки пенсионных выплат по возрасту',
+            8: 'Обеспечение наполнения интернет-ресурса департамента'
+        };
+
+        let currentTab = 1;
+        let allPlans = null;
+        let allNotes = {};
+
+        async function checkAdminAccess() {
+            const token = localStorage.getItem('accessToken');
+            if (!token) {
+                window.location.href = '/login.html';
+                return false;
+            }
+
+            try {
+                const response = await fetch('/api/user/profile', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Unauthorized');
+                const data = await response.json();
+                
+                if (!data.success || !data.user) throw new Error('User data not found');
+                
+                // Проверяем что это admin2
+                if (data.user.username !== 'admin2' && data.user.role !== 'admin') {
+                    alert('Доступ запрещен');
+                    window.location.href = '/index.html';
+                    return false;
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Ошибка:', error);
+                localStorage.removeItem('accessToken');
+                window.location.href = '/login.html';
+                return false;
+            }
+        }
+
+        async function loadPlans() {
+            const token = localStorage.getItem('accessToken');
+            
+            try {
+                const response = await fetch('/api/plans/load', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.found) {
+                    allPlans = result.plans;
+                    allNotes = result.notes || {};
+                    
+                    // Заполняем дропдаун регионов
+                    populateRegionSelect();
+                    
+                    renderPlan(currentTab);
+                } else {
+                    document.getElementById('plans-container').innerHTML = 
+                        '<div style="text-align: center; padding: 3rem; color: #64748b;">Нет сохранённых данных</div>';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+            }
+        }
+
+        function populateRegionSelect() {
+            const select = document.getElementById('regionSelect');
+            select.innerHTML = '<option value="">[Выбрать регион]</option>';
+            
+            REGIONS.forEach((region, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = region;
+                select.appendChild(option);
+            });
+        }
+
+        function showRegionData() {
+            const select = document.getElementById('regionSelect');
+            const regionIndex = parseInt(select.value);
+            
+            if (isNaN(regionIndex)) {
+                document.getElementById('region-data-container').style.display = 'none';
+                return;
+            }
+            
+            const regionName = REGIONS[regionIndex];
+            document.getElementById('region-title').textContent = regionName;
+            
+            const tbody = document.getElementById('region-tbody');
+            tbody.innerHTML = '';
+            
+            // Собираем данные по всем 8 планам для выбранного региона
+            for (let planNum = 1; planNum <= 8; planNum++) {
+                const planId = `plan${planNum}`;
+                const planData = allPlans[planId];
+                
+                if (planData && planData[regionIndex]) {
+                    const row = planData[regionIndex];
+                    const tr = document.createElement('tr');
+                    
+                    tr.innerHTML = `
+                        <td style="text-align: center; font-weight: 600;">${planNum}</td>
+                        <td><strong>${PLAN_TITLES[planNum] || `План № ${planNum}`}</strong></td>
+                        <td style="text-align: center;">${row[2] || '—'}</td>
+                        <td style="text-align: center;">${row[3] || '—'}</td>
+                        <td style="text-align: center;">${row[4] || '—'}</td>
+                    `;
+                    
+                    tbody.appendChild(tr);
+                }
+            }
+            
+            document.getElementById('region-data-container').style.display = 'block';
+        }
+
+        function renderPlan(planNumber) {
+            if (!allPlans || !allPlans[`plan${planNumber}`]) {
+                document.getElementById('plans-container').innerHTML = 
+                    '<div style="text-align: center; padding: 3rem; color: #64748b;">Нет данных для этого плана</div>';
+                return;
+            }
+
+            const data = allPlans[`plan${planNumber}`];
+            
+            let html = '<div style="background: white; padding: 2rem; border-radius: 8px;">';
+            html += `<h2 style="margin-bottom: 1rem;">План № ${planNumber}</h2>`;
+            html += `<p style="color: #64748b; margin-bottom: 2rem;">${PLAN_TITLES[planNumber]}</p>`;
+            html += '<table class="report-table"><thead><tr>';
+            html += '<th style="width: 50px;">№</th>';
+            html += '<th>Территориальный департамент</th>';
+            html += '<th>Плановый показатель</th>';
+            html += '<th>Фактический показатель</th>';
+            html += '<th>Коэффициент исполнения</th>';
+            html += '</tr></thead><tbody>';
+
+            data.forEach((row, rowIndex) => {
+                html += '<tr>';
+                row.forEach((cell, colIndex) => {
+                    if (colIndex === 0) {
+                        html += `<td style="text-align: center; font-weight: 600;">${cell}</td>`;
+                    } else if (colIndex === 1) {
+                        html += `<td><strong>${cell}</strong></td>`;
+                    } else {
+                        // Проверяем есть ли примечание
+                        const noteKey = `plan${planNumber}_${rowIndex}_${colIndex - 2}`;
+                        const hasNote = allNotes[noteKey];
+                        const cellStyle = hasNote ? 'background: #fef3c7; cursor: pointer;' : '';
+                        const noteIcon = hasNote ? ' 📝' : '';
+                        const clickHandler = hasNote ? `onclick="showNote('${noteKey}')"` : '';
+                        
+                        html += `<td style="text-align: center; ${cellStyle}" ${clickHandler} title="${hasNote ? 'Кликните для просмотра примечания' : ''}">${cell || '—'}${noteIcon}</td>`;
+                    }
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            document.getElementById('plans-container').innerHTML = html;
+        }
+
+        function showNote(noteKey) {
+            const noteText = allNotes[noteKey];
+            if (noteText) {
+                const modal = document.createElement('div');
+                modal.className = 'modal active';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 600px;">
+                        <h2 style="margin-bottom: 1rem;">📝 Примечание</h2>
+                        <div style="padding: 1rem; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb; white-space: pre-wrap; font-size: 1rem; line-height: 1.6;">${noteText}</div>
+                        <button onclick="this.closest('.modal').remove()" style="margin-top: 1rem; padding: 0.75rem 2rem; background: #6b7280; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: 600;">Закрыть</button>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+        }
+
+        function switchTab(planNumber) {
+            currentTab = planNumber;
+            
+            document.querySelectorAll('.tab-btn').forEach((btn, index) => {
+                btn.classList.toggle('active', index + 1 === planNumber);
+            });
+            
+            renderPlan(planNumber);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const hasAccess = await checkAdminAccess();
+            if (hasAccess) {
+                await loadPlans();
+            }
+        });
+    </script>
+</body>
+</html>

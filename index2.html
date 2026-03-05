@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>План работы территориальных департаментов</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/docx@8.2.2/build/index.umd.js"></script>
+    <style>
+        .note-btn {
+            background: #e5e7eb;
+            border: none;
+            padding: 0.25rem 0.5rem;
+            margin-left: 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        .note-btn:hover {
+            background: #d1d5db;
+            transform: scale(1.1);
+        }
+        .note-btn[style*="background: #fbbf24"] {
+            background: #fbbf24 !important;
+        }
+        .report-table td {
+            position: relative;
+        }
+        .report-table input {
+            display: inline-block;
+            width: calc(100% - 3rem);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="emblem">🏛️</div>
+                <div class="title-block">
+                    <h1>План работы территориальных департаментов КРиКСЗН</h1>
+                    <p>Республика Казахстан</p>
+                </div>
+            </div>
+            <div class="user-info">
+                <span id="userNameDisplay">Загрузка...</span>
+                <button class="btn-admin" id="adminPanelBtn" onclick="goToAdmin2()" style="display: none;">Админ панель</button>
+                <button class="btn-logout" onclick="logout()">Выход</button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="nav-tabs">
+        <button class="tab-btn active" data-tab="plan1">План № 1</button>
+        <button class="tab-btn" data-tab="plan2">План № 2</button>
+        <button class="tab-btn" data-tab="plan3">План № 3</button>
+        <button class="tab-btn" data-tab="plan4">План № 4</button>
+        <button class="tab-btn" data-tab="plan5">План № 5</button>
+        <button class="tab-btn" data-tab="plan6">План № 6</button>
+        <button class="tab-btn" data-tab="plan7">План № 7</button>
+        <button class="tab-btn" data-tab="plan8">План № 8</button>
+    </nav>
+
+    <main class="container">
+        <div class="action-buttons" style="display: flex; gap: 1rem; margin-bottom: 2rem; justify-content: center;">
+            <button class="btn-save" onclick="saveAllPlans()" style="background: #059669; color: white; padding: 0.75rem 2rem; border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;">💾 Сохранить</button>
+            <button class="btn-download" onclick="downloadCurrentPlan()" style="background: #2563eb; color: white; padding: 0.75rem 2rem; border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;">📥 Скачать текущий план</button>
+        </div>
+
+        <!-- План № 1 -->
+        <section id="plan1" class="form-section active">
+            <div class="form-header">
+                <h2 class="form-title">План № 1</h2>
+                <h3 class="form-subtitle">Реализация Дорожной карты партии «Amanat» по обеспечению доступности для лиц с инвалидностью</h3>
+                <p><strong>Дата:</strong> март 2026 года</p>
+            </div>
+
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (%)</th>
+                            <th>Фактический показатель (%)</th>
+                            <th>Коэффициент исполнения (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan1-tbody">
+                        <!-- 20 строк регионов + Всего -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- План № 2 -->
+        <section id="plan2" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">План № 2</h2>
+                <h3 class="form-subtitle">Мониторинг доли реализованной социальной части индивидуальных программ абилитации</h3>
+                <p><strong>Дата:</strong> март 2026 года</p>
+            </div>
+
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (%)</th>
+                            <th>Фактический показатель (%)</th>
+                            <th>Коэффициент исполнения (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan2-tbody">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Остальные планы 3-8 создадим аналогично -->
+        <section id="plan3" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">План № 3</h2>
+                <h3 class="form-subtitle">Своевременная организация проверочных мероприятий</h3>
+            </div>
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (кол-во проверок)</th>
+                            <th>Фактический показатель (кол-во проверок)</th>
+                            <th>Коэффициент исполнения (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan3-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="plan4" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">План № 4</h2>
+                <h3 class="form-subtitle">Достижение целевого показателя по заочному проактивному оказанию услуги (45%)</h3>
+            </div>
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (%)</th>
+                            <th>Фактический показатель (%)</th>
+                            <th>Коэффициент исполнения (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan4-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="plan5" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">План № 5</h2>
+                <h3 class="form-subtitle">Рассмотрение не менее 50% дел первичного освидетельствования ОМК МСЭ</h3>
+            </div>
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (%)</th>
+                            <th>Фактический показатель (%)</th>
+                            <th>Коэффициент исполнения (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan5-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="plan6" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">План № 6</h2>
+                <h3 class="form-subtitle">Направление поступивших формуляров на подтверждение</h3>
+            </div>
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (% от предыдущего месяца)</th>
+                            <th>Фактический показатель (кол-во отработанных)</th>
+                            <th>Коэффициент исполнения (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan6-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="plan7" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">План № 7</h2>
+                <h3 class="form-subtitle">Проведение проверки пенсионных выплат по возрасту</h3>
+            </div>
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (% от предыдущего месяца)</th>
+                            <th>Фактический показатель (% проверенных)</th>
+                            <th>Коэффициент исполнения</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan7-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="plan8" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">План № 8</h2>
+                <h3 class="form-subtitle">Обеспечение наполнения интернет-ресурса территориального департамента</h3>
+            </div>
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (кол-во публикаций не менее)</th>
+                            <th>Фактический показатель (кол-во публикаций)</th>
+                            <th>Коэффициент исполнения (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan8-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Модальное окно успеха -->
+    <div id="successModal" class="modal">
+        <div class="modal-content">
+            <h3 style="text-align: center; color: var(--success);">✅ Данные успешно сохранены</h3>
+            <p style="text-align: center; margin-top: 1rem;">Ваши данные были сохранены на сервере</p>
+            <button class="btn-primary" onclick="closeModal()" style="display: block; margin: 1.5rem auto 0;">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно для примечаний -->
+    <div id="noteModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2 style="margin-bottom: 1rem;">📝 Примечание</h2>
+            <textarea id="noteText" style="width: 100%; min-height: 150px; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 1rem; font-family: inherit; resize: vertical;" placeholder="Введите текстовое пояснение для показателя..."></textarea>
+            <div style="display: flex; gap: 1rem; margin-top: 1rem; justify-content: center;">
+                <button id="saveNoteBtn" style="padding: 0.75rem 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: 600;">Сохранить</button>
+                <button onclick="closeNoteModal()" style="padding: 0.75rem 2rem; background: #6b7280; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: 600;">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script2.js"></script>
+</body>
+</html>

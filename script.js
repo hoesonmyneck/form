@@ -4,16 +4,260 @@
  */
 
 // =====================================================
+// АВТОРИЗАЦИЯ
+// =====================================================
+
+// Проверка авторизации при загрузке
+function checkAuth() {
+    const token = localStorage.getItem('accessToken');
+    
+    if (!token) {
+        // Если токена нет, редиректим на страницу входа
+        window.location.href = '/login.html';
+        return false;
+    }
+    
+    // Проверяем токен и загружаем информацию о пользователе
+    fetch('/api/user/profile', {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Unauthorized');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.user) {
+            // Проверяем что пользователь admin2 НЕ может зайти в старые формы
+            if (data.user.username === 'admin2' || data.user.formType === 'plans') {
+                alert('У вас нет доступа к этим формам. Переход к вашим формам...');
+                window.location.href = '/index2';
+                return;
+            }
+            
+            // Отображаем имя пользователя
+            const userNameDisplay = document.getElementById('userNameDisplay');
+            if (userNameDisplay) {
+                userNameDisplay.textContent = data.user.fullName || data.user.username;
+            }
+            
+            // Показываем кнопку админки если пользователь - админ
+            if (data.user.role === 'admin') {
+                const adminBtn = document.getElementById('adminPanelBtn');
+                if (adminBtn) {
+                    adminBtn.style.display = 'block';
+                }
+            } else {
+                // Для обычных пользователей показываем кнопку личного кабинета
+                const cabinetBtn = document.getElementById('userCabinetBtn');
+                if (cabinetBtn) {
+                    cabinetBtn.style.display = 'block';
+                }
+            }
+            
+            // Заполняем и блокируем поля организации для всех пользователей
+            if (data.user.organization) {
+                fillOrganizationFields(data.user.organization);
+            }
+        } else {
+            throw new Error('User data not found');
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка проверки авторизации:', error);
+        // Удаляем недействительный токен
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        // Редирект на логин
+        window.location.href = '/login.html';
+    });
+    
+    return true;
+}
+
+// Заполнение полей организации
+function fillOrganizationFields(organization) {
+    // 1. Заполняем поля "наименование организации"
+    const orgInputs = document.querySelectorAll('.org-input');
+    orgInputs.forEach(input => {
+        input.value = organization;
+        input.readOnly = true;
+        input.style.cursor = 'not-allowed';
+        
+        // Автоматически расширяем высоту под содержимое
+        input.style.height = 'auto';
+        input.style.height = (input.scrollHeight + 4) + 'px';
+    });
+    
+    // УБРАНО: Автозаполнение истцов и ответчиков
+    // Теперь только поле организации заполняется автоматически
+}
+
+// УДАЛЕНО: Функция observeNewRows больше не нужна
+
+// Функция перехода в админку
+function goToAdmin() {
+    window.location.href = '/admin';
+}
+
+// Функция перехода в личный кабинет
+function goToCabinet() {
+    window.location.href = '/cabinet';
+}
+
+// Функция выхода
+function logout() {
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refreshToken })
+    })
+    .then(() => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login.html';
+    })
+    .catch(error => {
+        console.error('Ошибка при выходе:', error);
+        // Всё равно выходим локально
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login.html';
+    });
+}
+
+// =====================================================
 // ИНИЦИАЛИЗАЦИЯ
 // =====================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Сначала проверяем авторизацию
+    if (!checkAuth()) {
+        return; // Если не авторизован, прекращаем инициализацию
+    }
+    
     initTabs();
     initAddRowButtons();
     initAutoSave();
-    loadSavedData();
+    loadSavedData(); // Загружаем из localStorage
+    loadFormsFromServer(); // Загружаем с сервера
     initButtons();
 });
+
+// Загрузка сохранённых данных с сервера
+async function loadFormsFromServer() {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+        console.log('⚠️ Нет токена, пропускаем загрузку с сервера');
+        return;
+    }
+    
+    console.log('📥 Начинаем загрузку форм с сервера...');
+    
+    // Очищаем серверные файлы перед загрузкой
+    if (window.fileHandler && window.fileHandler.clearServerFiles) {
+        window.fileHandler.clearServerFiles();
+    }
+    
+    // Загружаем каждую форму
+    for (let formNum = 1; formNum <= 4; formNum++) {
+        try {
+            const response = await fetch(`/api/forms/${formNum}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            const data = await response.json();
+            console.log(`📋 Форма ${formNum}:`, data);
+            
+            if (data.success && data.found && data.formData) {
+                console.log(`✅ Восстанавливаем форму ${formNum}`);
+                // Восстанавливаем данные формы
+                restoreFormData(`form${formNum}`, data.formData);
+                
+                // Восстанавливаем прикрепленные файлы если они есть
+                if (data.attachedFiles && window.fileHandler) {
+                    window.fileHandler.restoreServerFiles(data.attachedFiles);
+                }
+            } else {
+                console.log(`ℹ️ Форма ${formNum} не найдена на сервере`);
+            }
+        } catch (err) {
+            console.error(`❌ Ошибка загрузки формы ${formNum}:`, err);
+        }
+    }
+    
+    console.log('✅ Загрузка форм завершена');
+}
+
+// Восстановление данных конкретной формы
+function restoreFormData(formId, formData) {
+    console.log(`🔄 Восстановление формы ${formId}:`, formData);
+    
+    const section = document.getElementById(formId);
+    if (!section) {
+        console.error(`❌ Секция ${formId} не найдена`);
+        return;
+    }
+    
+    // Восстанавливаем заголовок
+    const headerInputs = section.querySelectorAll('.form-header input, .form-meta input, .form-meta textarea');
+    headerInputs.forEach((input, index) => {
+        const value = formData.header[`input_${index}`];
+        if (value) {
+            input.value = value;
+            console.log(`  📝 Заголовок поле ${index}: ${value}`);
+        }
+    });
+    
+    // Восстанавливаем таблицы
+    for (const tableId in formData.tables) {
+        const tbody = document.getElementById(tableId);
+        if (!tbody) {
+            console.warn(`⚠️ Таблица ${tableId} не найдена`);
+            continue;
+        }
+        
+        const savedTable = formData.tables[tableId];
+        // Поддержка старого формата (массив) и нового (объект с rows)
+        const savedRows = savedTable.rows || savedTable;
+        
+        console.log(`  📊 Таблица ${tableId}: ${savedRows.length} строк`);
+        
+        // Добавляем недостающие строки
+        while (tbody.querySelectorAll('tr').length < savedRows.length) {
+            addRow(tableId);
+        }
+        
+        // Заполняем данные
+        const rows = tbody.querySelectorAll('tr');
+        savedRows.forEach((rowData, rowIndex) => {
+            if (rows[rowIndex]) {
+                const cells = rows[rowIndex].querySelectorAll('td');
+                let fieldIndex = 0;
+                
+                cells.forEach((td, cellIndex) => {
+                    const input = td.querySelector('textarea, input');
+                    if (input && rowData[cellIndex] !== undefined) {
+                        // Если в ячейке есть input/textarea - заполняем его
+                        input.value = rowData[cellIndex];
+                    }
+                    // Статичные ячейки (без input) не трогаем
+                });
+            }
+        });
+    }
+    
+    console.log(`✅ Форма ${formId} восстановлена`);
+}
 
 // =====================================================
 // НАВИГАЦИЯ ПО ТАБАМ
@@ -202,7 +446,7 @@ function loadSavedData() {
     if (savedData) {
         try {
             const data = JSON.parse(savedData);
-            restoreFormData(data);
+            restoreAllFormsData(data);
             
             if (timestamp) {
                 const date = new Date(timestamp);
@@ -241,7 +485,7 @@ function collectFormData() {
 
 function collectHeaderData(section) {
     const header = {};
-    section.querySelectorAll('.form-header input').forEach((input, index) => {
+    section.querySelectorAll('.form-header input, .form-meta input, .form-meta textarea').forEach((input, index) => {
         header[`input_${index}`] = input.value;
     });
     return header;
@@ -254,22 +498,45 @@ function collectTableData(section) {
         const tableId = tbody.id;
         if (!tableId) return;
         
+        // Получаем заголовки таблицы из ряда col-numbers (самый надёжный способ)
+        const table = tbody.closest('table');
+        let colCount = 0;
+        if (table) {
+            const colNumbersRow = table.querySelector('thead tr.col-numbers');
+            if (colNumbersRow) {
+                colCount = colNumbersRow.querySelectorAll('td').length;
+            }
+        }
+        
         const rows = [];
         tbody.querySelectorAll('tr').forEach(tr => {
             const row = [];
-            tr.querySelectorAll('textarea, input').forEach(field => {
-                row.push(field.value);
+            const cells = tr.querySelectorAll('td');
+            
+            cells.forEach((td, index) => {
+                // Проверяем, есть ли input/textarea в ячейке
+                const input = td.querySelector('textarea, input');
+                if (input) {
+                    row.push(input.value);
+                } else {
+                    // Если нет input/textarea - берём текст ячейки (например "Всего", "1", и т.д.)
+                    row.push(td.textContent.trim());
+                }
             });
+            
             rows.push(row);
         });
         
-        tables[tableId] = rows;
+        tables[tableId] = {
+            colCount: colCount,
+            rows: rows
+        };
     });
     
     return tables;
 }
 
-function restoreFormData(data) {
+function restoreAllFormsData(data) {
     if (!data.forms) return;
     
     Object.keys(data.forms).forEach(formId => {
@@ -280,7 +547,7 @@ function restoreFormData(data) {
         
         // Восстанавливаем заголовок
         if (formData.header) {
-            const inputs = section.querySelectorAll('.form-header input');
+            const inputs = section.querySelectorAll('.form-header input, .form-meta input, .form-meta textarea');
             Object.keys(formData.header).forEach(key => {
                 const index = parseInt(key.split('_')[1]);
                 if (inputs[index]) {
@@ -295,7 +562,15 @@ function restoreFormData(data) {
                 const tbody = document.getElementById(tableId);
                 if (!tbody) return;
                 
-                const rows = formData.tables[tableId];
+                const tableData = formData.tables[tableId];
+                // Поддержка нового формата (с rows) и старого (просто массив)
+                const rows = tableData.rows || tableData;
+                
+                // Проверяем что rows это массив
+                if (!Array.isArray(rows)) {
+                    console.warn(`⚠️ Данные таблицы ${tableId} не являются массивом:`, rows);
+                    return;
+                }
                 
                 // Добавляем недостающие строки
                 while (tbody.querySelectorAll('tr').length < rows.length) {
@@ -306,10 +581,13 @@ function restoreFormData(data) {
                 const trs = tbody.querySelectorAll('tr');
                 rows.forEach((rowData, rowIndex) => {
                     if (!trs[rowIndex]) return;
-                    const fields = trs[rowIndex].querySelectorAll('textarea, input');
-                    rowData.forEach((value, fieldIndex) => {
-                        if (fields[fieldIndex]) {
-                            fields[fieldIndex].value = value;
+                    if (!Array.isArray(rowData)) return;
+                    
+                    const cells = trs[rowIndex].querySelectorAll('td');
+                    cells.forEach((td, cellIndex) => {
+                        const input = td.querySelector('textarea, input');
+                        if (input && rowData[cellIndex] !== undefined) {
+                            input.value = rowData[cellIndex];
                         }
                     });
                 });
@@ -361,8 +639,8 @@ async function saveAndSubmitAll() {
         // 1. Сохраняем черновик локально
         saveToLocalStorage();
         
-        // 2. Отправляем ВСЕ формы на сервер (не только текущую)
-        await submitAllFormsToServer();
+        // 2. Сохраняем данные форм на сервер как JSON
+        await saveFormsAsJSON(data);
         
     } catch (error) {
         showNotification('Ошибка при сохранении. Попробуйте позже.', 'error');
@@ -371,6 +649,144 @@ async function saveAndSubmitAll() {
         btn.innerHTML = '<span class="btn-icon">💾</span> Сохранить';
         btn.disabled = false;
     }
+}
+
+// Новая функция: сохранение данных форм как JSON
+async function saveFormsAsJSON(data) {
+    const token = localStorage.getItem('accessToken');
+    let savedCount = 0;
+    
+    console.log('💾 Начинаем сохранение форм:', data.forms);
+    
+    // Получаем все прикреплённые файлы
+    const allFiles = window.fileHandler.getAllFiles();
+    
+    // Получаем список файлов на удаление
+    const filesToDelete = window.fileHandler.getFilesToDelete();
+    
+    // Отправляем каждую форму отдельно
+    for (const formId in data.forms) {
+        const formNumber = formId.replace('form', ''); // form1 -> 1
+        const formData = data.forms[formId];
+        
+        // Проверяем, есть ли данные в этой форме
+        const hasFormData = checkIfFormHasData(formData);
+        console.log(`📋 Форма ${formNumber}: hasData=${hasFormData}`, formData);
+        
+        if (!hasFormData) continue;
+        
+        try {
+            console.log(`📤 Отправляем форму ${formNumber} на сервер...`);
+            
+            // Создаём FormData для отправки файлов
+            const formDataToSend = new FormData();
+            formDataToSend.append('formNumber', formNumber);
+            formDataToSend.append('formData', JSON.stringify(formData));
+            
+            // Добавляем файлы для всех секций этой формы
+            for (const section in allFiles) {
+                if (section.startsWith(`form${formNumber}-`)) {
+                    const files = allFiles[section] || [];
+                    files.forEach((file, index) => {
+                        formDataToSend.append(`files_${section}`, file);
+                    });
+                }
+            }
+            
+            // Добавляем список файлов на удаление
+            for (const section in filesToDelete) {
+                if (section.startsWith(`form${formNumber}-`)) {
+                    const deleteList = filesToDelete[section] || [];
+                    if (deleteList.length > 0) {
+                        formDataToSend.append(`delete_${section}`, JSON.stringify(deleteList));
+                    }
+                }
+            }
+            
+            const response = await fetch('/api/forms/save', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                    // НЕ добавляем Content-Type - браузер сам установит для FormData
+                },
+                body: formDataToSend
+            });
+            
+            const result = await response.json();
+            console.log(`✅ Ответ сервера для формы ${formNumber}:`, result);
+            
+            if (response.ok) {
+                savedCount++;
+            }
+        } catch (err) {
+            console.error(`❌ Ошибка сохранения формы ${formNumber}:`, err);
+        }
+    }
+    
+    console.log(`✅ Сохранено ${savedCount} форм`);
+    
+    if (savedCount > 0) {
+        // Очищаем только новые файлы и применяем удаления
+        window.fileHandler.clearAllFiles();
+        
+        // Перезагружаем файлы с сервера чтобы показать актуальное состояние
+        await reloadFilesFromServer();
+        
+        // Показываем успех
+        document.getElementById('successModal').classList.add('active');
+        showNotification(`Сохранено форм: ${savedCount}`, 'success');
+    }
+}
+
+// Перезагрузка файлов с сервера
+async function reloadFilesFromServer() {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+    
+    for (let formNum = 1; formNum <= 4; formNum++) {
+        try {
+            const response = await fetch(`/api/forms/${formNum}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.found && data.attachedFiles) {
+                // Восстанавливаем файлы для этой формы
+                if (window.fileHandler) {
+                    window.fileHandler.restoreServerFiles(data.attachedFiles);
+                }
+            }
+        } catch (err) {
+            console.error(`❌ Ошибка загрузки файлов формы ${formNum}:`, err);
+        }
+    }
+}
+
+// Проверка наличия данных в конкретной форме
+function checkIfFormHasData(formData) {
+    // Проверяем заголовок
+    for (const key in formData.header) {
+        if (formData.header[key] && formData.header[key].trim()) {
+            return true;
+        }
+    }
+    
+    // Проверяем таблицы (поддержка старого и нового формата)
+    for (const tableId in formData.tables) {
+        const tableData = formData.tables[tableId];
+        const rows = tableData.rows || tableData; // Новый или старый формат
+        
+        for (const row of rows) {
+            for (const cell of row) {
+                if (cell && cell.trim()) {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    return false;
 }
 
 // Делаем функцию доступной глобально
@@ -512,7 +928,7 @@ async function sendToServer(data) {
  * Функция для загрузки ранее сохраненной формы с сервера
  */
 async function loadFromServer(formId) {
-    const API_URL = `/api/forms/${formId}`; // Замените на реальный URL
+    const API_URL = `/api/forms/${formId}`;
     
     const response = await fetch(API_URL);
     
@@ -521,7 +937,7 @@ async function loadFromServer(formId) {
     }
     
     const data = await response.json();
-    restoreFormData(data);
+    restoreAllFormsData(data);
 }
 
 // Делаем функцию закрытия модального окна глобальной

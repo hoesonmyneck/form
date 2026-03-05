@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель | Формы МТСЗН РК</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a365d;
+            --primary-light: #2c5282;
+            --secondary: #c9a227;
+            --bg: #f0f4f8;
+            --bg-paper: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #cbd5e1;
+            --success: #059669;
+            --error: #dc2626;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'PT Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, #0f2440 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .user-info {
+            background: rgba(255,255,255,0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .btn {
+            font-family: inherit;
+            font-size: 0.9rem;
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Статистика */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-paper);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        .stat-card .icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-card .label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Таблица документов */
+        .documents-section {
+            background: var(--bg-paper);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .section-header h2 {
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filters {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .filter-select {
+            font-family: inherit;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .search-input {
+            font-family: inherit;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            width: 250px;
+        }
+
+        .documents-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .documents-table th {
+            background: var(--bg);
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .documents-table td {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        .documents-table tr:hover td {
+            background: #f8fafc;
+        }
+
+        .doc-name {
+            font-weight: 600;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .doc-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .form-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .form-badge.form-1 { background: #dbeafe; color: #1e40af; }
+        .form-badge.form-2 { background: #dcfce7; color: #166534; }
+        .form-badge.form-3 { background: #fef3c7; color: #92400e; }
+        .form-badge.form-4 { background: #fce7f3; color: #9d174d; }
+        .form-badge.form-all { background: #e5e7eb; color: #374151; }
+
+        .action-btn {
+            font-family: inherit;
+            font-size: 0.85rem;
+            padding: 0.4rem 0.8rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            transition: all 0.2s;
+        }
+
+        .btn-download {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .btn-download:hover {
+            background: #bfdbfe;
+        }
+
+        .btn-delete {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .btn-delete:hover {
+            background: #fecaca;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Модальное окно подтверждения */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 1rem;
+        }
+
+        .modal-content p {
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .btn-cancel {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .btn-confirm-delete {
+            background: var(--error);
+            color: white;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Уведомления */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: var(--shadow);
+            z-index: 1001;
+            animation: slideUp 0.3s ease;
+        }
+
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--error); }
+
+        @keyframes slideUp {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .section-header {
+                flex-direction: column;
+            }
+
+            .filters {
+                flex-wrap: wrap;
+                width: 100%;
+            }
+
+            .search-input {
+                width: 100%;
+            }
+
+            .documents-table {
+                font-size: 0.85rem;
+            }
+
+            .documents-table th,
+            .documents-table td {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .action-btn {
+                padding: 0.3rem 0.5rem;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🔐 Админ-панель</h1>
+        <div class="header-actions">
+            <div class="user-info" id="userInfo">Загрузка...</div>
+            <a href="/index.html" class="btn btn-secondary">
+                <span>📝</span> К формам
+            </a>
+            <button class="btn btn-secondary" onclick="loadDocuments()">
+                <span>🔄</span> Обновить
+            </button>
+            <button class="btn btn-secondary" onclick="handleLogout()">
+                <span>🚪</span> Выйти
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Статистика -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="icon">📄</div>
+                <div class="value" id="statTotal">0</div>
+                <div class="label">Всего документов</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">📊</div>
+                <div class="value" id="statForm1">0</div>
+                <div class="label">Форма №1</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">📋</div>
+                <div class="value" id="statForm2">0</div>
+                <div class="label">Форма №2</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">📑</div>
+                <div class="value" id="statForm3">0</div>
+                <div class="label">Форма №3</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">📃</div>
+                <div class="value" id="statForm4">0</div>
+                <div class="label">Форма №4</div>
+            </div>
+        </div>
+
+        <!-- Таблица документов -->
+        <div class="documents-section">
+            <div class="section-header">
+                <h2>📁 Загруженные документы</h2>
+                <div class="filters">
+                    <select class="filter-select" id="formFilter" onchange="filterDocuments()">
+                        <option value="">Все формы</option>
+                        <option value="1">Форма №1</option>
+                        <option value="2">Форма №2</option>
+                        <option value="3">Форма №3</option>
+                        <option value="4">Форма №4</option>
+                        <option value="all">Все формы (комплект)</option>
+                    </select>
+                    <input type="text" class="search-input" id="searchInput" placeholder="Поиск по организации..." oninput="filterDocuments()">
+                </div>
+            </div>
+
+            <div id="documentsContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Загрузка документов...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно удаления -->
+    <div class="modal" id="deleteModal">
+        <div class="modal-content">
+            <h3>🗑️ Удалить документ?</h3>
+            <p id="deleteDocName">Это действие нельзя отменить.</p>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeDeleteModal()">Отмена</button>
+                <button class="btn btn-confirm-delete" onclick="confirmDelete()">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+        let allDocuments = [];
+        let deleteDocId = null;
+
+        // Проверка авторизации при загрузке
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+        });
+
+        async function checkAuth() {
+            const accessToken = localStorage.getItem('accessToken');
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+            if (!accessToken || user.role !== 'admin') {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            // Показываем информацию о пользователе
+            document.getElementById('userInfo').textContent = `👤 ${user.fullName || user.username}`;
+
+            // Загружаем данные
+            loadDocuments();
+            loadStats();
+        }
+
+        // Загрузка списка документов
+        async function loadDocuments() {
+            try {
+                const accessToken = localStorage.getItem('accessToken');
+                const response = await fetch(`${API_URL}/api/documents`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                if (response.status === 401 || response.status === 403) {
+                    handleUnauthorized();
+                    return;
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    allDocuments = data.documents;
+                    renderDocuments(allDocuments);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+                showToast('Ошибка загрузки документов', 'error');
+            }
+        }
+
+        // Загрузка статистики
+        async function loadStats() {
+            try {
+                const accessToken = localStorage.getItem('accessToken');
+                const response = await fetch(`${API_URL}/api/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                if (response.status === 401 || response.status === 403) {
+                    return;
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('statTotal').textContent = data.stats.total;
+                    document.getElementById('statForm1').textContent = data.stats.byForm.form1;
+                    document.getElementById('statForm2').textContent = data.stats.byForm.form2;
+                    document.getElementById('statForm3').textContent = data.stats.byForm.form3;
+                    document.getElementById('statForm4').textContent = data.stats.byForm.form4;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+            }
+        }
+
+        // Отрисовка документов
+        function renderDocuments(documents) {
+            const container = document.getElementById('documentsContainer');
+            
+            if (documents.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📭</div>
+                        <h3>Документы не найдены</h3>
+                        <p>Загруженные документы появятся здесь</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const tableHTML = `
+                <table class="documents-table">
+                    <thead>
+                        <tr>
+                            <th>Документ</th>
+                            <th>Форма</th>
+                            <th>Организация</th>
+                            <th>Пользователь</th>
+                            <th>Дата загрузки</th>
+                            <th>Размер</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${documents.map(doc => `
+                            <tr>
+                                <td>
+                                    <div class="doc-name">📄 ${escapeHtml(doc.original_name)}</div>
+                                </td>
+                                <td>
+                                    <span class="form-badge form-${doc.form_number}">
+                                        ${getFormLabel(doc.form_number)}
+                                    </span>
+                                </td>
+                                <td>${escapeHtml(doc.organization || 'Не указано')}</td>
+                                <td>
+                                    <div>${escapeHtml(doc.user_full_name || doc.username || 'Неизвестно')}</div>
+                                    <div class="doc-meta">${escapeHtml(doc.user_organization || '')}</div>
+                                </td>
+                                <td>
+                                    <div>${formatDate(doc.submitted_at)}</div>
+                                    <div class="doc-meta">${formatTime(doc.submitted_at)}</div>
+                                </td>
+                                <td>${formatSize(doc.file_size)}</td>
+                                <td>
+                                    <button class="action-btn btn-download" onclick="downloadDoc('${doc.id}')">
+                                        ⬇️ Скачать
+                                    </button>
+                                    <button class="action-btn btn-delete" onclick="showDeleteModal('${doc.id}', '${escapeHtml(doc.original_name)}')">
+                                        🗑️
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = tableHTML;
+        }
+
+        // Фильтрация документов
+        function filterDocuments() {
+            const formFilter = document.getElementById('formFilter').value;
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+
+            let filtered = allDocuments;
+
+            if (formFilter) {
+                filtered = filtered.filter(doc => doc.form_number === formFilter);
+            }
+
+            if (searchQuery) {
+                filtered = filtered.filter(doc => 
+                    (doc.organization && doc.organization.toLowerCase().includes(searchQuery)) ||
+                    (doc.original_name && doc.original_name.toLowerCase().includes(searchQuery)) ||
+                    (doc.user_full_name && doc.user_full_name.toLowerCase().includes(searchQuery))
+                );
+            }
+
+            renderDocuments(filtered);
+        }
+
+        // Скачивание документа
+        async function downloadDoc(id) {
+            const accessToken = localStorage.getItem('accessToken');
+            window.open(`${API_URL}/api/documents/${id}/download?token=${accessToken}`, '_blank');
+        }
+
+        // Показать модальное окно удаления
+        function showDeleteModal(id, name) {
+            deleteDocId = id;
+            document.getElementById('deleteDocName').textContent = `Вы уверены, что хотите удалить "${name}"?`;
+            document.getElementById('deleteModal').classList.add('active');
+        }
+
+        // Закрыть модальное окно
+        function closeDeleteModal() {
+            deleteDocId = null;
+            document.getElementById('deleteModal').classList.remove('active');
+        }
+
+        // Подтвердить удаление
+        async function confirmDelete() {
+            if (!deleteDocId) return;
+
+            try {
+                const accessToken = localStorage.getItem('accessToken');
+                const response = await fetch(`${API_URL}/api/documents/${deleteDocId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                if (response.status === 401 || response.status === 403) {
+                    handleUnauthorized();
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Документ удалён', 'success');
+                    loadDocuments();
+                    loadStats();
+                } else {
+                    showToast(data.error || 'Ошибка удаления', 'error');
+                }
+            } catch (error) {
+                showToast('Ошибка при удалении', 'error');
+            }
+
+            closeDeleteModal();
+        }
+
+        // Выход из системы
+        async function handleLogout() {
+            const refreshToken = localStorage.getItem('refreshToken');
+            
+            try {
+                await fetch(`${API_URL}/api/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ refreshToken })
+                });
+            } catch (error) {
+                console.error('Ошибка выхода:', error);
+            }
+
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
+        }
+
+        // Обработка неавторизованного доступа
+        function handleUnauthorized() {
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
+        }
+
+        // Вспомогательные функции
+        function getFormLabel(formNumber) {
+            const labels = {
+                '1': 'Форма №1',
+                '2': 'Форма №2',
+                '3': 'Форма №3',
+                '4': 'Форма №4',
+                'all': 'Все формы'
+            };
+            return labels[formNumber] || formNumber;
+        }
+
+        function formatDate(isoString) {
+            if (!isoString) return '—';
+            return new Date(isoString).toLocaleDateString('ru-RU');
+        }
+
+        function formatTime(isoString) {
+            if (!isoString) return '';
+            return new Date(isoString).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function formatSize(bytes) {
+            if (!bytes) return '—';
+            const kb = bytes / 1024;
+            if (kb < 1024) return kb.toFixed(1) + ' КБ';
+            return (kb / 1024).toFixed(1) + ' МБ';
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char]);
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideUp 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Закрытие модалки по клику вне её
+        document.getElementById('deleteModal').addEventListener('click', (e) => {
+            if (e.target.id === 'deleteModal') closeDeleteModal();
+        });
+    </script>
+</body>
+</html>

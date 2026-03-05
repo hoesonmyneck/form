@@ -21,6 +21,12 @@
                     <p>Республика Казахстан</p>
                 </div>
             </div>
+            <div class="user-info">
+                <span id="userNameDisplay">Загрузка...</span>
+                <button class="btn-admin" id="adminPanelBtn" onclick="goToAdmin()" style="display: none;">Админ панель</button>
+                <button class="btn-admin" id="userCabinetBtn" onclick="goToCabinet()" style="display: none;">Личный кабинет</button>
+                <button class="btn-logout" onclick="logout()">Выход</button>
+            </div>
         </div>
     </header>
 
@@ -49,15 +55,15 @@
                 <h2 class="form-title">Форма № 1</h2>
                 <h3 class="form-subtitle">Отчет о движении гражданских дел</h3>
                 <div class="form-meta">
-                    <p>по состоянию на <input type="text" class="inline-input" placeholder="________"> 20<input type="text" class="inline-input small" placeholder="__" maxlength="2"> года по</p>
-                    <input type="text" class="org-input" placeholder="(наименование организации)">
+                    <p>по состоянию на <input type="number" class="inline-input" placeholder="4" min="1" max="4"> квартал <input type="number" class="inline-input year-input" value="2025" min="2020" max="2030"> года по</p>
+                    <textarea class="org-input" placeholder="(наименование организации)" rows="2"></textarea>
                 </div>
             </div>
 
             <div class="table-container">
                 <!-- В качестве истцов -->
                 <h4 class="section-header">В качестве истцов</h4>
-                <table class="report-table">
+                <table class="report-table" data-plaintiff-table="true">
                     <thead>
                         <tr>
                             <th>№</th>
@@ -93,7 +99,7 @@
 
                 <!-- В качестве ответчиков -->
                 <h4 class="section-header">В качестве ответчиков</h4>
-                <table class="report-table">
+                <table class="report-table" data-defendant-table="true">
                     <thead>
                         <tr>
                             <th>№</th>
@@ -172,14 +178,14 @@
                 <h3 class="form-subtitle">Отчет о движении административных дел</h3>
                 <div class="form-meta">
                     <p>по состоянию на <input type="number" class="inline-input small" placeholder="4" min="1" max="4"> квартал <input type="number" class="inline-input year-input" value="2025" min="2020" max="2030"> года по</p>
-                    <input type="text" class="org-input" placeholder="(наименование организации)">
+                    <textarea class="org-input" placeholder="(наименование организации)" rows="2"></textarea>
                 </div>
             </div>
 
             <div class="table-container">
                 <!-- В качестве истцов -->
                 <h4 class="section-header">В качестве истцов</h4>
-                <table class="report-table">
+                <table class="report-table" data-plaintiff-table="true">
                     <thead>
                         <tr>
                             <th>№</th>
@@ -215,7 +221,7 @@
 
                 <!-- В качестве ответчиков -->
                 <h4 class="section-header">В качестве ответчиков</h4>
-                <table class="report-table">
+                <table class="report-table" data-defendant-table="true">
                     <thead>
                         <tr>
                             <th>№</th>
@@ -294,7 +300,7 @@
                 <h3 class="form-subtitle">Отчет о движении запросов, направленных на согласование права подачи апелляционного, кассационного обжалования судебных актов</h3>
                 <div class="form-meta">
                     <p>по состоянию на <input type="number" class="inline-input small" placeholder="4" min="1" max="4"> квартал <input type="number" class="inline-input year-input" value="2025" min="2020" max="2030"> года по</p>
-                    <input type="text" class="org-input" placeholder="(наименование организации)">
+                    <textarea class="org-input" placeholder="(наименование организации)" rows="2"></textarea>
                 </div>
             </div>
 
@@ -503,8 +509,8 @@
                 <h2 class="form-title">Форма № 4</h2>
                 <h3 class="form-subtitle">Отчет об актах судебных и контролирующих государственных органов</h3>
                 <div class="form-meta">
-                    <p>по состоянию на <input type="text" class="inline-input" placeholder="________"> 20<input type="text" class="inline-input small" placeholder="__" maxlength="2"> года по</p>
-                    <input type="text" class="org-input" placeholder="(наименование организации)">
+                    <p>по состоянию на <input type="number" class="inline-input" placeholder="4" min="1" max="4"> квартал <input type="number" class="inline-input year-input" value="2025" min="2020" max="2030"> года по</p>
+                    <textarea class="org-input" placeholder="(наименование организации)" rows="2"></textarea>
                 </div>
             </div>
 
@@ -702,6 +708,7 @@
         </div>
     </div>
 
+    <script src="file-handler.js"></script>
     <script src="script.js"></script>
     <script src="docx-generator.js"></script>
 </body>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Админ-панель - Формы МТСЗН РК</title>
+    <title>Личный кабинет - Формы МТСЗН РК</title>
     <!-- Библиотека для генерации DOCX -->
     <script src="https://unpkg.com/docx@8.2.2/build/index.umd.js"></script>
     <style>
@@ -157,29 +157,6 @@
             min-width: 180px;
         }
 
-        /* Секция управления пользователями */
-        .section {
-            background: var(--bg-paper);
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--shadow);
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .section-header h2 {
-            font-size: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
         /* Таблицы с данными форм */
         .form-table-container {
             background: var(--bg-paper);
@@ -220,20 +197,16 @@
             background: #e0f2fe;
         }
 
-        .user-label {
+        .file-link {
+            color: var(--accent);
+            text-decoration: none;
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            background: #dbeafe;
-            color: #1e40af;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 0.25rem;
+            margin: 0.25rem 0;
+            cursor: pointer;
         }
 
-        .org-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
+        .file-link:hover {
+            text-decoration: underline;
         }
 
         .empty-state {
@@ -244,72 +217,6 @@
 
         .hidden {
             display: none !important;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-muted);
-        }
-
-        /* Модальное окно */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            max-width: 500px;
-            width: 90%;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            font-family: inherit;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 1rem;
-            justify-content: flex-end;
-            margin-top: 1.5rem;
-        }
-
-        .btn-cancel {
-            background: #e2e8f0;
-            color: var(--text);
-        }
-
-        .btn-cancel:hover {
-            background: #cbd5e1;
         }
 
         /* Toast уведомления */
@@ -333,50 +240,12 @@
             from { transform: translateY(100px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-
-        /* Управление пользователями */
-        .users-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .users-table th {
-            background: var(--bg);
-            padding: 1rem;
-            text-align: left;
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-
-        .users-table td {
-            padding: 1rem;
-            border-top: 1px solid var(--border);
-        }
-
-        .action-btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.85rem;
-        }
-
-        .btn-delete {
-            background: #fee;
-            color: #c33;
-        }
-
-        .btn-delete:hover {
-            background: #fcc;
-        }
     </style>
 </head>
 <body>
     <header class="header">
         <div class="header-content">
-            <h1>🔐 Админ-панель - Формы МТСЗН РК</h1>
+            <h1>👤 Личный кабинет - Формы МТСЗН РК</h1>
             <div class="header-actions">
                 <a href="/index.html" class="btn btn-secondary">
                     <span>📝</span> К формам
@@ -389,20 +258,6 @@
     </header>
 
     <div class="container">
-        <!-- Управление пользователями (свернуто по умолчанию) -->
-        <div class="section">
-            <div class="section-header" style="cursor: pointer;" onclick="toggleUsersSection()">
-                <h2>
-                    <span id="usersToggleIcon" style="display: inline-block; transition: transform 0.3s; transform: rotate(-90deg);">▶</span>
-                    👥 Управление пользователями
-                </h2>
-                <button class="btn btn-primary" onclick="event.stopPropagation(); showCreateUserModal()">
-                    <span>➕</span> Создать пользователя
-                </button>
-            </div>
-            <div id="usersTableContainer" style="display: none;"></div>
-        </div>
-
         <!-- Фильтры -->
         <div class="filters">
             <select class="filter-select" id="userFilter" onchange="filterForms()">
@@ -431,50 +286,22 @@
         <div id="form4Container" class="form-container hidden"></div>
     </div>
 
-    <!-- Модальное окно создания пользователя -->
-    <div class="modal" id="createUserModal">
-        <div class="modal-content">
-            <h3 style="text-align: center; margin-bottom: 1.5rem;">👤 Создать пользователя</h3>
-            <form onsubmit="handleCreateUser(event)">
-                <div class="form-group">
-                    <label>Логин *</label>
-                    <input type="text" id="newUserUsername" required>
-                </div>
-                <div class="form-group">
-                    <label>Пароль *</label>
-                    <input type="text" id="newUserPassword" required>
-                </div>
-                <div class="form-group">
-                    <label>Организация</label>
-                    <input type="text" id="newUserOrganization" value="МТСЗН РК">
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-cancel" onclick="closeCreateUserModal()">Отмена</button>
-                    <button type="submit" class="btn btn-primary" id="createUserBtn">Создать</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
         let currentTab = 1;
         let allForms = [];
-        let allUsers = [];
-        let usersVisible = false;
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', async () => {
-            const hasAccess = await checkAdminAccess();
+            const hasAccess = await checkUserAccess();
             if (hasAccess) {
-                await loadUsers();
                 await loadAllForms();
                 updateFilters();
                 renderCurrentForm();
             }
         });
 
-        // Проверка прав админа
-        async function checkAdminAccess() {
+        // Проверка доступа (НЕ админ)
+        async function checkUserAccess() {
             const token = localStorage.getItem('accessToken');
             if (!token) {
                 window.location.href = '/login.html';
@@ -491,9 +318,9 @@
                 const data = await response.json();
                 if (!data.success || !data.user) throw new Error('User data not found');
 
-                if (data.user.role !== 'admin') {
-                    alert('Доступ запрещен. Требуются права администратора.');
-                    window.location.href = '/index.html';
+                // Если пользователь админ - редирект в админку
+                if (data.user.role === 'admin') {
+                    window.location.href = '/admin';
                     return false;
                 }
 
@@ -525,24 +352,6 @@
                 }
             } catch (error) {
                 console.error('❌ Ошибка загрузки форм:', error);
-            }
-        }
-
-        // Загрузка пользователей
-        async function loadUsers() {
-            try {
-                const token = localStorage.getItem('accessToken');
-                const response = await fetch('/api/admin/users', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    allUsers = data.users;
-                    renderUsers(allUsers);
-                }
-            } catch (error) {
-                console.error('Ошибка загрузки пользователей:', error);
             }
         }
 
@@ -614,7 +423,7 @@
                                 user: userInfo,
                                 tableId: tableId,
                                 cells: row,
-                                attachedFiles: form.attachedFiles || {} // Добавляем файлы
+                                attachedFiles: form.attachedFiles || {}
                             });
                         });
                     }
@@ -625,22 +434,16 @@
                 return '<div class="empty-state">Нет данных для отображения</div>';
             }
 
-            // Стандартные заголовки для каждой формы (ВСЕГДА используем их)
-            // Заголовки соответствуют ВСЕМ колонкам таблицы (включая статичные ячейки)
+            // Стандартные заголовки для каждой формы
             const defaultHeaders = {
-                // Форма 1 и 2: 8 колонок
                 1: ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
                 2: ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
-                // Форма 3: 9 колонок (включая Предмет спора)
                 3: ['Предмет спора', 'Количество квартал/год', 'Согласовано (квартал)', 'Отказано (квартал)', 'На рассмотрении (квартал)', 'Согласовано (год)', 'Отказано (год)', 'На рассмотрении (год)', 'Примечание'],
-                // Форма 4: 6 колонок
                 4: ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание']
             };
             
-            // ВСЕГДА используем стандартные заголовки для текущей формы
             let headers = defaultHeaders[currentTab] || [];
             
-            // Если нет стандартных заголовков, создаём по количеству колонок
             if (headers.length === 0 && allRows.length > 0) {
                 const maxCols = Math.max(...allRows.map(r => r.cells.length));
                 headers = ['№'];
@@ -652,7 +455,7 @@
             let html = '<div class="form-table-container">';
             html += '<table class="form-table">';
             
-            // Заголовки (используем все заголовки как есть)
+            // Заголовки
             html += '<thead><tr>';
             headers.forEach((header, index) => {
                 if (index === 0) {
@@ -661,7 +464,6 @@
                     html += `<th>${escapeHtml(header)}</th>`;
                 }
             });
-            // Добавляем колонку "Файлы"
             html += '<th style="width: 150px;">Файлы</th>';
             html += '</tr></thead>';
             
@@ -670,25 +472,22 @@
             allRows.forEach((row, index) => {
                 html += '<tr>';
                 
-                // Все ячейки данных (теперь данные содержат ВСЕ колонки, включая первую)
                 row.cells.forEach((cell, cellIndex) => {
                     if (cellIndex === 0) {
-                        // Первая колонка - используем сквозную нумерацию вместо данных из ячейки
+                        // Первая колонка - используем сквозную нумерацию
                         html += `<td style="font-weight: 600; background: #f8fafc; text-align: center;">${index + 1}</td>`;
                     } else {
                         html += `<td>${escapeHtml(cell || '')}</td>`;
                     }
                 });
                 
-                // Колонка с файлами (только для этой конкретной секции)
+                // Колонка с файлами
                 const allFilesForForm = row.attachedFiles || {};
                 const filesForThisSection = allFilesForForm[row.tableId] || [];
                 
                 if (filesForThisSection.length > 0) {
                     html += '<td>';
                     filesForThisSection.forEach(file => {
-                        // НЕ используем escapeHtml для data-атрибутов - кириллица должна остаться как есть
-                        // Только экранируем кавычки для безопасности
                         const safeFilename = file.filename.replace(/"/g, '&quot;');
                         const safeOriginal = file.originalName.replace(/"/g, '&quot;');
                         html += `<a href="javascript:void(0)" class="file-link" data-filename="${safeFilename}" data-original="${safeOriginal}" title="${escapeHtml(file.originalName)}">📎 ${escapeHtml(file.originalName)}</a><br>`;
@@ -731,7 +530,6 @@
         function updateFilters() {
             console.log('🔄 Обновление фильтров, всего форм:', allForms.length);
             
-            // Пользователи - убираем дубликаты правильно
             const userFilter = document.getElementById('userFilter');
             const usersMap = new Map();
             allForms.forEach(f => {
@@ -746,7 +544,6 @@
             });
             console.log('👤 Пользователей в фильтре:', usersMap.size);
 
-            // Организации - убираем дубликаты
             const orgFilter = document.getElementById('orgFilter');
             const orgsSet = new Set(allForms.map(f => f.userOrganization || f.organization).filter(o => o));
             
@@ -760,126 +557,6 @@
         // Фильтрация
         function filterForms() {
             renderCurrentForm();
-        }
-
-        // Управление пользователями
-        function toggleUsersSection() {
-            const container = document.getElementById('usersTableContainer');
-            const icon = document.getElementById('usersToggleIcon');
-            
-            usersVisible = !usersVisible;
-            
-            if (usersVisible) {
-                container.style.display = 'block';
-                icon.style.transform = 'rotate(0deg)';
-                icon.textContent = '▼';
-            } else {
-                container.style.display = 'none';
-                icon.style.transform = 'rotate(-90deg)';
-                icon.textContent = '▶';
-            }
-        }
-
-        function renderUsers(users) {
-            const container = document.getElementById('usersTableContainer');
-            if (users.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 2rem;">Нет пользователей</p>';
-                return;
-            }
-
-            let html = '<table class="users-table"><thead><tr>';
-            html += '<th>ФИО</th><th>Логин</th><th>Email</th><th>Организация</th><th>Роль</th><th>Действия</th>';
-            html += '</tr></thead><tbody>';
-
-            users.forEach(user => {
-                html += '<tr>';
-                html += `<td><strong>${escapeHtml(user.fullName)}</strong></td>`;
-                html += `<td>${escapeHtml(user.username)}</td>`;
-                html += `<td>${escapeHtml(user.email)}</td>`;
-                html += `<td>${escapeHtml(user.organization || 'Не указано')}</td>`;
-                html += `<td><span style="padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; ${user.role === 'admin' ? 'background: #fee; color: #c33;' : 'background: #efe; color: #3c3;'}">
-                    ${user.role === 'admin' ? '👑 Админ' : '👤 Пользователь'}
-                </span></td>`;
-                html += `<td>${user.role !== 'admin' ? `<button class="action-btn btn-delete" onclick="deleteUser('${user.id}', '${escapeHtml(user.fullName)}')">🗑️</button>` : '—'}</td>`;
-                html += '</tr>';
-            });
-
-            html += '</tbody></table>';
-            container.innerHTML = html;
-        }
-
-        function showCreateUserModal() {
-            document.getElementById('createUserModal').classList.add('active');
-            document.getElementById('newUserUsername').value = '';
-            document.getElementById('newUserPassword').value = '';
-            document.getElementById('newUserOrganization').value = 'МТСЗН РК';
-        }
-
-        function closeCreateUserModal() {
-            document.getElementById('createUserModal').classList.remove('active');
-        }
-
-        async function handleCreateUser(event) {
-            event.preventDefault();
-            
-            const username = document.getElementById('newUserUsername').value;
-            const password = document.getElementById('newUserPassword').value;
-            const organization = document.getElementById('newUserOrganization').value;
-            
-            const btn = document.getElementById('createUserBtn');
-            btn.disabled = true;
-            btn.textContent = 'Создание...';
-            
-            try {
-                const token = localStorage.getItem('accessToken');
-                const response = await fetch('/api/admin/users', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        username,
-                        email: username,
-                        password,
-                        fullName: username,
-                        organization,
-                        role: 'user'
-                    })
-                });
-
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Ошибка создания');
-
-                showToast('Пользователь создан', 'success');
-                closeCreateUserModal();
-                loadUsers();
-            } catch (error) {
-                showToast(error.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Создать';
-            }
-        }
-
-        async function deleteUser(userId, userName) {
-            if (!confirm(`Удалить пользователя "${userName}"?`)) return;
-
-            try {
-                const token = localStorage.getItem('accessToken');
-                const response = await fetch(`/api/admin/users/${userId}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Ошибка удаления');
-
-                showToast('Пользователь удалён', 'success');
-                loadUsers();
-            } catch (error) {
-                showToast(error.message, 'error');
-            }
         }
 
         function showToast(message, type) {
@@ -924,11 +601,6 @@
                 showToast('Ошибка скачивания файла', 'error');
             }
         }
-
-        // Закрытие модалки по клику вне её
-        document.getElementById('createUserModal').addEventListener('click', (e) => {
-            if (e.target.id === 'createUserModal') closeCreateUserModal();
-        });
 
         // Делегирование клика на ссылки файлов
         document.addEventListener('click', (e) => {
