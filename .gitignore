@@ -38,8 +38,13 @@ Thumbs.db
 *.swo
 *~
 
-# Docker
+# Docker volumes (не образы)
 .docker/
+postgres_data/
+uploads_data/
+
+# Docker образы для офлайн деплоя
+*.tar
 
 # Бэкапы
 *.backup

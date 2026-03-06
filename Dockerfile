@@ -1,36 +1,25 @@
-# Multi-stage build для оптимизации размера образа
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-
-# Копируем package.json и устанавливаем зависимости
-COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
-
-# Production stage
 FROM node:18-alpine
 
+# Установка рабочей директории
 WORKDIR /app
 
-# Создаем непривилегированного пользователя
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+# Копируем package.json и package-lock.json
+COPY package*.json ./
 
-# Копируем зависимости из builder
-COPY --from=builder /app/node_modules ./node_modules
+# Устанавливаем зависимости
+RUN npm ci --only=production
 
-# Копируем исходный код
-COPY --chown=nodejs:nodejs . .
+# Копируем весь проект
+COPY . .
 
-# Создаем необходимые директории
-RUN mkdir -p server/uploads && \
-    chown -R nodejs:nodejs server/uploads
+# Создаём директорию для загруженных файлов
+RUN mkdir -p /app/uploads && chmod 755 /app/uploads
 
-# Переключаемся на непривилегированного пользователя
-USER nodejs
+# Создаём директорию uploads в server (для совместимости)
+RUN mkdir -p /app/server/uploads && chmod 755 /app/server/uploads
 
-# Открываем порт
+# Порт приложения
 EXPOSE 3000
 
-# Запускаем приложение
-CMD ["node", "server/server.js"]
+# Запуск приложения
+CMD ["node", "server/server-postgres.js"]
