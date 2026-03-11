@@ -320,68 +320,61 @@ function initAddRowButtons() {
 function addRow(tableId) {
     const tbody = document.getElementById(tableId);
     if (!tbody) return;
-    
-    const rowCount = tbody.querySelectorAll('tr').length + 1;
-    const newRow = document.createElement('tr');
-    
-    // Определяем тип формы по ID таблицы
-    if (tableId.startsWith('form4')) {
-        // Форма 4 - 6 колонок
-        newRow.innerHTML = `
-            <td>${rowCount}</td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-        `;
-    } else {
-        // Формы 1 и 2 - 8 колонок
-        newRow.innerHTML = `
-            <td>${rowCount}</td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-            <td><textarea></textarea></td>
-        `;
+
+    // Клонируем первую строку чтобы сохранить структуру колонок
+    const firstRow = tbody.querySelector('tr');
+    if (!firstRow) return;
+
+    const newRow = firstRow.cloneNode(true);
+
+    // Очищаем все поля ввода
+    newRow.querySelectorAll('textarea, input:not([type="file"])').forEach(el => { el.value = ''; });
+
+    // Назначаем новый rowId
+    const rowId = window.fileHandler ? window.fileHandler.generateRowId() : ('r' + Date.now());
+    newRow.dataset.rowId = rowId;
+
+    // Очищаем и переинициализируем file-cell
+    const fileCell = newRow.querySelector('.file-cell');
+    if (fileCell) {
+        fileCell.innerHTML = '';
+        if (window.fileHandler) {
+            window.fileHandler.initRowFileUpload(tableId, rowId, fileCell);
+        }
     }
-    
+
     tbody.appendChild(newRow);
-    
-    // Анимация появления
+    renumberRows(tableId);
+
     newRow.style.animation = 'fadeIn 0.3s ease';
-    
-    // Фокус на первом textarea новой строки
     const firstTextarea = newRow.querySelector('textarea');
-    if (firstTextarea) {
-        firstTextarea.focus();
-    }
-    
+    if (firstTextarea) firstTextarea.focus();
+
     showNotification('Строка добавлена', 'success');
 }
 
 function removeRow(tableId) {
     const tbody = document.getElementById(tableId);
     if (!tbody) return;
-    
+
     const rows = tbody.querySelectorAll('tr');
-    
-    // Нельзя удалить последнюю строку
+
     if (rows.length <= 1) {
         showNotification('Нельзя удалить последнюю строку', 'error');
         return;
     }
-    
-    // Удаляем последнюю строку
+
     const lastRow = rows[rows.length - 1];
+    const rowId = lastRow.dataset.rowId;
+
+    // Удаляем файлы строки из хранилища
+    if (rowId && window.fileHandler) {
+        window.fileHandler.removeRowFiles(tableId, rowId);
+    }
+
     lastRow.style.animation = 'fadeIn 0.3s ease reverse';
-    
     setTimeout(() => {
         lastRow.remove();
-        // Обновляем нумерацию
         renumberRows(tableId);
         showNotification('Строка удалена', 'success');
     }, 200);
@@ -493,46 +486,43 @@ function collectHeaderData(section) {
 
 function collectTableData(section) {
     const tables = {};
-    
+
     section.querySelectorAll('tbody').forEach(tbody => {
         const tableId = tbody.id;
         if (!tableId) return;
-        
-        // Получаем заголовки таблицы из ряда col-numbers (самый надёжный способ)
+
         const table = tbody.closest('table');
         let colCount = 0;
         if (table) {
             const colNumbersRow = table.querySelector('thead tr.col-numbers');
             if (colNumbersRow) {
-                colCount = colNumbersRow.querySelectorAll('td').length;
+                // Не считаем служебную колонку файлов
+                colCount = colNumbersRow.querySelectorAll('td:not(.file-col-num)').length;
             }
         }
-        
-        const rows = [];
+
+        const rows   = [];
+        const rowIds = [];
+
         tbody.querySelectorAll('tr').forEach(tr => {
+            rowIds.push(tr.dataset.rowId || '');
+
             const row = [];
-            const cells = tr.querySelectorAll('td');
-            
-            cells.forEach((td, index) => {
-                // Проверяем, есть ли input/textarea в ячейке
-                const input = td.querySelector('textarea, input');
+            tr.querySelectorAll('td').forEach(td => {
+                if (td.classList.contains('file-cell')) return; // пропускаем колонку файлов
+                const input = td.querySelector('textarea, input:not([type="file"])');
                 if (input) {
                     row.push(input.value);
                 } else {
-                    // Если нет input/textarea - берём текст ячейки (например "Всего", "1", и т.д.)
                     row.push(td.textContent.trim());
                 }
             });
-            
             rows.push(row);
         });
-        
-        tables[tableId] = {
-            colCount: colCount,
-            rows: rows
-        };
+
+        tables[tableId] = { colCount, rows, rowIds };
     });
-    
+
     return tables;
 }
 
@@ -578,17 +568,30 @@ function restoreAllFormsData(data) {
                 }
                 
                 // Заполняем данные
+                const rowIds = tableData.rowIds || [];
                 const trs = tbody.querySelectorAll('tr');
                 rows.forEach((rowData, rowIndex) => {
                     if (!trs[rowIndex]) return;
                     if (!Array.isArray(rowData)) return;
-                    
-                    const cells = trs[rowIndex].querySelectorAll('td');
-                    cells.forEach((td, cellIndex) => {
-                        const input = td.querySelector('textarea, input');
-                        if (input && rowData[cellIndex] !== undefined) {
-                            input.value = rowData[cellIndex];
+
+                    // Восстанавливаем rowId — чтобы файлы привязались к нужной строке
+                    if (rowIds[rowIndex]) {
+                        trs[rowIndex].dataset.rowId = rowIds[rowIndex];
+                        const fileCell = trs[rowIndex].querySelector('.file-cell');
+                        if (fileCell && window.fileHandler) {
+                            window.fileHandler.initRowFileUpload(tableId, rowIds[rowIndex], fileCell);
                         }
+                    }
+
+                    // Заполняем ячейки, пропуская file-cell
+                    let dataIdx = 0;
+                    trs[rowIndex].querySelectorAll('td').forEach(td => {
+                        if (td.classList.contains('file-cell')) return;
+                        const input = td.querySelector('textarea, input:not([type="file"])');
+                        if (input && rowData[dataIdx] !== undefined) {
+                            input.value = rowData[dataIdx];
+                        }
+                        dataIdx++;
                     });
                 });
             });

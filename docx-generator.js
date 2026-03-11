@@ -72,7 +72,7 @@ async function generateForm1Document(data) {
                 }),
                 new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: `по состоянию на ${reportDate} 20${reportYear} года по ${orgName}`, size: 22 })]
+                    children: [new TextRun({ text: `по состоянию на ${reportDate} 20${reportYear} года ${orgName}`, size: 22 })]
                 }),
                 new Paragraph({
                     alignment: AlignmentType.CENTER,
@@ -108,7 +108,7 @@ async function generateForm1Document(data) {
                     children: [new TextRun({ text: "В качестве третьего лица", bold: true, size: 22 })]
                 }),
                 
-                createReportTable((tables['form1-thirdparty']?.rows || tables['form1-thirdparty']) || []),
+                createForm1ThirdPartyTable((tables['form1-thirdparty']?.rows || tables['form1-thirdparty']) || []),
             ]
         }]
     });
@@ -143,7 +143,7 @@ async function generateForm2Document(data) {
                 }),
                 new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: `по состоянию на ${quarter} квартал ${year} года по ${orgName}`, size: 22 })]
+                    children: [new TextRun({ text: `по состоянию на ${quarter} квартал ${year} года ${orgName}`, size: 22 })]
                 }),
                 new Paragraph({
                     alignment: AlignmentType.CENTER,
@@ -164,7 +164,7 @@ async function generateForm2Document(data) {
                     alignment: AlignmentType.CENTER,
                     children: [new TextRun({ text: "В качестве ответчиков", bold: true, size: 22 })]
                 }),
-                createReportTable((tables['form2-defendants']?.rows || tables['form2-defendants']) || []),
+                createForm2DefendantsTable((tables['form2-defendants']?.rows || tables['form2-defendants']) || []),
                 
                 new Paragraph({ children: [] }),
                 
@@ -189,6 +189,7 @@ async function generateForm3Document(data) {
     const headerData = data.forms.form3.header;
     const appealData = (data.forms.form3.tables['form3-appeal']?.rows || data.forms.form3.tables['form3-appeal']) || [];
     const cassationData = (data.forms.form3.tables['form3-cassation']?.rows || data.forms.form3.tables['form3-cassation']) || [];
+    const supervisionData = (data.forms.form3.tables['form3-supervision']?.rows || data.forms.form3.tables['form3-supervision']) || [];
     
     const quarter = headerData.input_0 || '4';
     const year = headerData.input_1 || '2025';
@@ -222,7 +223,7 @@ async function generateForm3Document(data) {
                 }),
                 new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: `по состоянию на ${quarter} квартал ${year} года по ${orgName}`, size: 22 })]
+                    children: [new TextRun({ text: `по состоянию на ${quarter} квартал ${year} года ${orgName}`, size: 22 })]
                 }),
                 new Paragraph({
                     alignment: AlignmentType.CENTER,
@@ -248,14 +249,15 @@ async function generateForm3Document(data) {
                 createForm3Table(cassationData, rowLabels),
                 
                 new Paragraph({ children: [] }),
-                
+
                 new Paragraph({
-                    children: [new TextRun({ 
-                        text: "* в графе 2,3,4,5,6,7,8 цифры записываются с помощью дробной черты. Над дробной чертой записывается количество запросов, направленных на согласование за отчетный квартал, под дробной чертой записывается количество направленных на согласование с начала года", 
-                        size: 18,
-                        italics: true
-                    })]
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: "Надзорная инстанция", bold: true, size: 22 })]
                 }),
+
+                createForm3Table(supervisionData, rowLabels),
+
+                new Paragraph({ children: [] }),
             ]
         }]
     });
@@ -295,7 +297,7 @@ async function generateForm4Document(data) {
         }),
         new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: `по состоянию на ${reportDate} 20${reportYear} года по ${orgName}`, size: 22 })]
+            children: [new TextRun({ text: `по состоянию на ${reportDate} 20${reportYear} года ${orgName}`, size: 22 })]
         }),
         new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -422,63 +424,134 @@ function createReportTable(rowsData) {
 }
 
 /**
- * Создание таблицы для формы 3
+ * Создание таблицы для формы 1 — "В качестве третьего лица" (3 столбца)
+ */
+function createForm1ThirdPartyTable(rowsData) {
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, BorderStyle } = docx;
+
+    const borderStyle = { style: BorderStyle.SINGLE, size: 1, color: "000000" };
+    const borders = { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle };
+
+    const headers = ['№', 'Суть спора (предмет, сумма иска и другие)', 'Количество'];
+    const headerRow = new TableRow({
+        children: headers.map(h => new TableCell({
+            borders,
+            children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })]
+        }))
+    });
+
+    const colNumbersRow = new TableRow({
+        children: ['1', '2', '3'].map(n => new TableCell({
+            borders,
+            children: [new Paragraph({ children: [new TextRun({ text: n, size: 16 })] })]
+        }))
+    });
+
+    const dataRows = rowsData.length > 0
+        ? rowsData.map((row, i) => new TableRow({
+            children: [
+                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: String(i + 1), size: 20 })] })] }),
+                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: row[1] || '', size: 20 })] })] }),
+                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: row[2] || '', size: 20 })] })] }),
+            ]
+        }))
+        : [1, 2, 3].map(i => new TableRow({
+            children: [
+                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: String(i), size: 20 })] })] }),
+                new TableCell({ borders, children: [new Paragraph({ children: [] })] }),
+                new TableCell({ borders, children: [new Paragraph({ children: [] })] }),
+            ]
+        }));
+
+    return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, colNumbersRow, ...dataRows] });
+}
+
+/**
+ * Создание таблицы для формы 2 — "В качестве ответчиков" (9 столбцов)
+ */
+function createForm2DefendantsTable(rowsData) {
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, BorderStyle } = docx;
+
+    const borderStyle = { style: BorderStyle.SINGLE, size: 1, color: "000000" };
+    const borders = { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle };
+
+    const headers = [
+        '№', 'Истец', 'Ответчик',
+        'Суть спора (МСЭ, социальное обеспечение, доступность)',
+        'Номер № и дата административного акта',
+        'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'
+    ];
+
+    const headerRow = new TableRow({
+        children: headers.map(h => new TableCell({
+            borders,
+            children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })]
+        }))
+    });
+
+    const colNumbersRow = new TableRow({
+        children: ['1','2','3','4','5','6','7','8','9'].map(n => new TableCell({
+            borders,
+            children: [new Paragraph({ children: [new TextRun({ text: n, size: 16 })] })]
+        }))
+    });
+
+    const dataRows = rowsData.length > 0
+        ? rowsData.map((row, i) => new TableRow({
+            children: [
+                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: String(i + 1), size: 20 })] })] }),
+                ...Array(8).fill(null).map((_, j) =>
+                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: row[j + 1] || '', size: 20 })] })] })
+                )
+            ]
+        }))
+        : [1, 2, 3].map(i => new TableRow({
+            children: [
+                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: String(i), size: 20 })] })] }),
+                ...Array(8).fill(null).map(() => new TableCell({ borders, children: [new Paragraph({ children: [] })] }))
+            ]
+        }));
+
+    return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, colNumbersRow, ...dataRows] });
+}
+
+/**
+ * Создание таблицы для формы 3 (упрощённая — 6 столбцов)
  */
 function createForm3Table(rowsData, rowLabels) {
     const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, BorderStyle } = docx;
     
-    const borderStyle = {
-        style: BorderStyle.SINGLE,
-        size: 1,
-        color: "000000"
-    };
-    
-    const borders = {
-        top: borderStyle,
-        bottom: borderStyle,
-        left: borderStyle,
-        right: borderStyle
-    };
-    
-    // Заголовки
-    const headerRow1 = new TableRow({
-        children: [
-            new TableCell({ borders, rowSpan: 2, children: [new Paragraph({ children: [new TextRun({ text: 'Предмет спора', bold: true, size: 16 })] })] }),
-            new TableCell({ borders, rowSpan: 2, children: [new Paragraph({ children: [new TextRun({ text: 'Количество квартал/год*', bold: true, size: 16 })] })] }),
-            new TableCell({ borders, columnSpan: 3, children: [new Paragraph({ children: [new TextRun({ text: 'За отчетный квартал', bold: true, size: 16 })] })] }),
-            new TableCell({ borders, columnSpan: 3, children: [new Paragraph({ children: [new TextRun({ text: 'С начала года', bold: true, size: 16 })] })] }),
-            new TableCell({ borders, rowSpan: 2, children: [new Paragraph({ children: [new TextRun({ text: 'Примечание', bold: true, size: 16 })] })] }),
-        ]
+    const borderStyle = { style: BorderStyle.SINGLE, size: 1, color: "000000" };
+    const borders = { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle };
+
+    const headers = ['Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание'];
+    const headerRow = new TableRow({
+        children: headers.map(h => new TableCell({
+            borders,
+            children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 16 })] })]
+        }))
     });
-    
-    const headerRow2 = new TableRow({
-        children: [
-            new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: 'Согласовано*', bold: true, size: 14 })] })] }),
-            new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: 'Отказано*', bold: true, size: 14 })] })] }),
-            new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: 'На рассмотрении*', bold: true, size: 14 })] })] }),
-            new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: 'Согласовано*', bold: true, size: 14 })] })] }),
-            new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: 'Отказано*', bold: true, size: 14 })] })] }),
-            new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: 'На рассмотрении*', bold: true, size: 14 })] })] }),
-        ]
+
+    const colNumbersRow = new TableRow({
+        children: ['1','2','3','4','5','6'].map(n => new TableCell({
+            borders,
+            children: [new Paragraph({ children: [new TextRun({ text: n, size: 14 })] })]
+        }))
     });
-    
-    // Данные
+
     const dataRows = rowLabels.map((label, index) => {
         const rowData = rowsData[index] || [];
         return new TableRow({
             children: [
                 new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: label, size: 18 })] })] }),
-                ...Array(8).fill(null).map((_, i) => 
-                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: rowData[i] || '/', size: 18 })] })] })
+                ...Array(5).fill(null).map((_, i) =>
+                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: rowData[i + 1] || '', size: 18 })] })] })
                 )
             ]
         });
     });
-    
-    return new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [headerRow1, headerRow2, ...dataRows]
-    });
+
+    return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, colNumbersRow, ...dataRows] });
 }
 
 /**

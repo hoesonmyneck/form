@@ -1,244 +1,242 @@
 /**
- * ОБРАБОТЧИК ЗАГРУЗКИ ФАЙЛОВ
- * Управляет загрузкой файлов для каждой секции формы
+ * ОБРАБОТЧИК ЗАГРУЗКИ ФАЙЛОВ — уровень строк
+ * Каждая строка таблицы имеет свою кнопку загрузки файлов.
+ * Ключ хранилища: `${tableId}__${rowId}`
  */
 
-// Хранилище файлов по секциям
-const sectionFiles = {};
+const sectionFiles  = {};  // новые файлы перед отправкой
+const serverFiles   = {};  // файлы уже сохранённые на сервере
+const filesToDelete = {};  // файлы помеченные на удаление
 
-// Хранилище уже загруженных (серверных) файлов для отображения и удаления
-const serverFiles = {};
+// ─── Генерация ID ────────────────────────────────────────────────────────────
 
-// Хранилище файлов на удаление
-const filesToDelete = {};
+function generateRowId() {
+    return 'r' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4);
+}
 
-/**
- * Инициализация обработчиков файлов
- */
-function initFileHandlers() {
-    // Автоматически добавляем кнопки загрузки после каждой секции с таблицей
-    const tableSections = document.querySelectorAll('.table-container');
-    
-    tableSections.forEach(container => {
-        const headers = container.querySelectorAll('.section-header');
-        
-        headers.forEach(header => {
-            // Находим следующие элементы после заголовка
-            let currentElement = header.nextElementSibling;
-            let table = null;
-            let rowButtons = null;
-            
-            // Ищем таблицу и кнопки строк
-            while (currentElement && !currentElement.classList.contains('section-header')) {
-                if (currentElement.tagName === 'TABLE') {
-                    table = currentElement;
+// ─── Инициализация всех строк при загрузке страницы ─────────────────────────
+
+function initAllRowFileUploads() {
+    document.querySelectorAll('tbody[id]').forEach(tbody => {
+        const table = tbody.closest('table');
+        if (!table) return;
+
+        // Добавляем заголовок колонки "Документы" (один раз)
+        const thead = table.querySelector('thead');
+        if (thead && !thead.querySelector('.file-col-header')) {
+            const firstHeaderTr = thead.querySelector('tr:first-child');
+            if (firstHeaderTr) {
+                const allHeaderRows = thead.querySelectorAll('tr');
+                const th = document.createElement('th');
+                th.className = 'file-col-header';
+                th.textContent = 'Документы';
+                // Если заголовок многострочный — растягиваем на все строки, кроме col-numbers
+                const dataHeaderRows = Array.from(allHeaderRows).filter(r => !r.classList.contains('col-numbers'));
+                if (dataHeaderRows.length > 1) {
+                    th.rowSpan = dataHeaderRows.length;
                 }
-                if (currentElement.classList.contains('row-buttons')) {
-                    rowButtons = currentElement;
-                    break;
-                }
-                currentElement = currentElement.nextElementSibling;
+                firstHeaderTr.appendChild(th);
             }
-            
-            // Если нашли кнопки строк и ещё нет секции загрузки файлов
-            if (rowButtons && table) {
-                const tbody = table.querySelector('tbody');
-                if (tbody && tbody.id && !rowButtons.nextElementSibling?.classList.contains('file-upload-section')) {
-                    const section = tbody.id;
-                    
-                    // Создаём секцию загрузки файлов
-                    const fileSection = document.createElement('div');
-                    fileSection.className = 'file-upload-section';
-                    fileSection.innerHTML = `
-                        <label class="file-upload-label">
-                            📎 Прикрепить файлы
-                            <input type="file" class="file-input" data-section="${section}" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx">
-                        </label>
-                        <div class="uploaded-files" data-section="${section}"></div>
-                    `;
-                    
-                    // Вставляем после кнопок
-                    rowButtons.after(fileSection);
-                    
-                    // Инициализируем хранилище для секции
-                    if (!sectionFiles[section]) {
-                        sectionFiles[section] = [];
-                    }
-                    
-                    // Добавляем обработчик
-                    const input = fileSection.querySelector('.file-input');
-                    input.addEventListener('change', (e) => {
-                        handleFileSelect(e, section);
-                    });
-                }
+            // Добавляем номер колонки в строку col-numbers
+            const colNumbersRow = thead.querySelector('tr.col-numbers');
+            if (colNumbersRow) {
+                const td = document.createElement('td');
+                td.className = 'file-col-num';
+                td.textContent = colNumbersRow.querySelectorAll('td').length + 1;
+                colNumbersRow.appendChild(td);
             }
+        }
+
+        // Инициализируем каждую строку tbody
+        tbody.querySelectorAll('tr').forEach(tr => {
+            _ensureRowFileCell(tbody.id, tr);
         });
     });
 }
 
-/**
- * Обработка выбора файлов
- */
-function handleFileSelect(event, section) {
-    const files = Array.from(event.target.files);
-    
-    files.forEach(file => {
-        // Проверка размера (макс 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-            showNotification(`Файл "${file.name}" слишком большой (макс 10MB)`, 'error');
-            return;
-        }
-        
-        // Добавляем файл в хранилище
-        sectionFiles[section].push(file);
-    });
-    
-    // Обновляем отображение
-    renderUploadedFiles(section);
-    
-    // Очищаем input для возможности повторной загрузки
-    event.target.value = '';
+// Внутренняя: убеждаемся что строка имеет file-cell и rowId
+function _ensureRowFileCell(tableId, tr) {
+    if (!tr.dataset.rowId) {
+        tr.dataset.rowId = generateRowId();
+    }
+    let cell = tr.querySelector('.file-cell');
+    if (!cell) {
+        cell = document.createElement('td');
+        cell.className = 'file-cell';
+        tr.appendChild(cell);
+    }
+    initRowFileUpload(tableId, tr.dataset.rowId, cell);
 }
 
-/**
- * Отрисовка списка загруженных файлов
- */
-function renderUploadedFiles(section) {
-    const container = document.querySelector(`.uploaded-files[data-section="${section}"]`);
-    if (!container) return;
-    
-    const newFiles = sectionFiles[section] || [];
-    const existingFiles = serverFiles[section] || [];
-    
-    let html = '';
-    
-    // Сначала показываем уже загруженные файлы с сервера
-    existingFiles.forEach((file, index) => {
-        const isMarkedForDeletion = filesToDelete[section]?.includes(file.filename);
-        if (!isMarkedForDeletion) {
-            html += `
-                <div class="file-badge" style="background: #e0f2fe; border-color: #0ea5e9;">
-                    <span class="file-badge-name" title="${file.originalName}">📄 ${file.originalName}</span>
-                    <span class="file-badge-remove" onclick="removeServerFile('${section}', '${file.filename}')" title="Удалить">×</span>
-                </div>
-            `;
-        }
+// ─── Инициализация загрузки для одной строки ────────────────────────────────
+
+function initRowFileUpload(tableId, rowId, cell) {
+    if (!cell) return;
+    const key = tableId + '__' + rowId;
+
+    if (!sectionFiles[key]) sectionFiles[key] = [];
+
+    cell.innerHTML = `
+        <label class="row-file-btn" title="Прикрепить файлы к этой строке">
+            📎 Прикрепить
+            <input type="file" style="display:none" multiple
+                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx">
+        </label>
+        <div class="row-file-list"></div>
+    `;
+
+    const input = cell.querySelector('input[type="file"]');
+    input.addEventListener('change', e => {
+        Array.from(e.target.files).forEach(file => {
+            if (file.size > 10 * 1024 * 1024) {
+                showNotification(`Файл "${file.name}" слишком большой (макс 10MB)`, 'error');
+                return;
+            }
+            sectionFiles[key].push(file);
+        });
+        renderRowFiles(key, cell);
+        e.target.value = '';
     });
-    
-    // Потом показываем новые файлы
-    newFiles.forEach((file, index) => {
+
+    renderRowFiles(key, cell);
+}
+
+// ─── Отрисовка файлов в ячейке строки ───────────────────────────────────────
+
+function renderRowFiles(key, cell) {
+    const listEl = cell.querySelector('.row-file-list');
+    if (!listEl) return;
+
+    const newFiles  = sectionFiles[key]  || [];
+    const existing  = serverFiles[key]   || [];
+    let html = '';
+
+    existing.forEach(file => {
+        if (filesToDelete[key]?.includes(file.filename)) return;
+        html += `
+            <div class="file-badge server-file">
+                <span class="file-badge-name" title="${escapeAttr(file.originalName)}">📄 ${escapeHtml(file.originalName)}</span>
+                <span class="file-badge-remove"
+                      onclick="window.fileHandler.removeServerFile('${escapeAttr(key)}','${escapeAttr(file.filename)}')">×</span>
+            </div>`;
+    });
+
+    newFiles.forEach((file, i) => {
         html += `
             <div class="file-badge">
-                <span class="file-badge-name" title="${file.name}">📄 ${file.name}</span>
-                <span class="file-badge-remove" onclick="removeFile('${section}', ${index})" title="Удалить">×</span>
-            </div>
-        `;
+                <span class="file-badge-name" title="${escapeAttr(file.name)}">📄 ${escapeHtml(file.name)}</span>
+                <span class="file-badge-remove"
+                      onclick="window.fileHandler.removeFile('${escapeAttr(key)}',${i})">×</span>
+            </div>`;
     });
-    
-    container.innerHTML = html;
+
+    listEl.innerHTML = html;
 }
 
-/**
- * Удаление нового (не загруженного) файла
- */
-function removeFile(section, index) {
-    if (sectionFiles[section]) {
-        sectionFiles[section].splice(index, 1);
-        renderUploadedFiles(section);
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+}
+function escapeAttr(str) {
+    return String(str).replace(/'/g, "\\'");
+}
+
+// ─── Поиск ячейки по ключу ──────────────────────────────────────────────────
+
+function findCellByKey(key) {
+    const sep = key.indexOf('__');
+    if (sep === -1) return null;
+    const tableId = key.substring(0, sep);
+    const rowId   = key.substring(sep + 2);
+    const tbody = document.getElementById(tableId);
+    if (!tbody) return null;
+    const tr = tbody.querySelector(`tr[data-row-id="${rowId}"]`);
+    return tr ? tr.querySelector('.file-cell') : null;
+}
+
+// ─── Публичные методы ────────────────────────────────────────────────────────
+
+function removeFile(key, index) {
+    if (sectionFiles[key]) {
+        sectionFiles[key].splice(index, 1);
+        const cell = findCellByKey(key);
+        if (cell) renderRowFiles(key, cell);
     }
 }
 
-/**
- * Удаление файла с сервера (помечаем на удаление)
- */
-function removeServerFile(section, filename) {
-    if (!filesToDelete[section]) {
-        filesToDelete[section] = [];
-    }
-    filesToDelete[section].push(filename);
-    renderUploadedFiles(section);
+function removeServerFile(key, filename) {
+    if (!filesToDelete[key]) filesToDelete[key] = [];
+    filesToDelete[key].push(filename);
+    const cell = findCellByKey(key);
+    if (cell) renderRowFiles(key, cell);
 }
 
-/**
- * Восстановление серверных файлов (при загрузке формы)
- */
+// Удалить все файлы строки (при удалении строки из таблицы)
+function removeRowFiles(tableId, rowId) {
+    const key = tableId + '__' + rowId;
+    delete sectionFiles[key];
+    delete serverFiles[key];
+    delete filesToDelete[key];
+}
+
+// Восстановить серверные файлы (после загрузки формы)
 function restoreServerFiles(attachedFiles) {
     if (!attachedFiles) return;
-    
-    // Загружаем/обновляем файлы из сервера (добавляем к существующим)
-    for (const section in attachedFiles) {
-        serverFiles[section] = attachedFiles[section];
-        renderUploadedFiles(section);
+    for (const key in attachedFiles) {
+        serverFiles[key] = attachedFiles[key];
+        const cell = findCellByKey(key);
+        if (cell) renderRowFiles(key, cell);
     }
 }
 
-/**
- * Полная очистка серверных файлов (при начальной загрузке)
- */
 function clearServerFiles() {
-    Object.keys(serverFiles).forEach(key => delete serverFiles[key]);
-    Object.keys(filesToDelete).forEach(key => delete filesToDelete[key]);
+    Object.keys(serverFiles).forEach(k => delete serverFiles[k]);
+    Object.keys(filesToDelete).forEach(k => delete filesToDelete[k]);
 }
 
-/**
- * Получение всех файлов для отправки
- */
-function getAllFiles() {
-    return sectionFiles;
-}
+function getAllFiles() { return sectionFiles; }
+function getFilesToDelete() { return filesToDelete; }
 
-/**
- * Получение списка файлов на удаление
- */
-function getFilesToDelete() {
-    return filesToDelete;
-}
-
-/**
- * Очистка всех файлов после успешного сохранения
- */
 function clearAllFiles() {
-    // Очищаем только НОВЫЕ файлы (которые не были на сервере)
-    Object.keys(sectionFiles).forEach(section => {
-        sectionFiles[section] = [];
-    });
-    
-    // Применяем удаления серверных файлов (убираем их из serverFiles)
-    for (const section in filesToDelete) {
-        const deleteList = filesToDelete[section] || [];
-        if (serverFiles[section]) {
-            serverFiles[section] = serverFiles[section].filter(file => 
-                !deleteList.includes(file.filename)
-            );
-            // Удаляем пустые секции
-            if (serverFiles[section].length === 0) {
-                delete serverFiles[section];
-            }
+    // Очищаем новые файлы
+    Object.keys(sectionFiles).forEach(k => { sectionFiles[k] = []; });
+
+    // Применяем удаления серверных файлов
+    for (const key in filesToDelete) {
+        const del = filesToDelete[key] || [];
+        if (serverFiles[key]) {
+            serverFiles[key] = serverFiles[key].filter(f => !del.includes(f.filename));
+            if (serverFiles[key].length === 0) delete serverFiles[key];
         }
     }
-    
-    // Очищаем список на удаление
-    Object.keys(filesToDelete).forEach(key => delete filesToDelete[key]);
-    
-    // Перерисовываем все секции
-    document.querySelectorAll('.uploaded-files').forEach(container => {
-        const section = container.getAttribute('data-section');
-        if (section) {
-            renderUploadedFiles(section);
-        }
+    Object.keys(filesToDelete).forEach(k => delete filesToDelete[k]);
+
+    // Перерисовываем все file-cell
+    document.querySelectorAll('tbody[id]').forEach(tbody => {
+        tbody.querySelectorAll('tr[data-row-id]').forEach(tr => {
+            const key = tbody.id + '__' + tr.dataset.rowId;
+            const cell = tr.querySelector('.file-cell');
+            if (cell) renderRowFiles(key, cell);
+        });
     });
 }
 
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', initFileHandlers);
+// ─── Запуск ──────────────────────────────────────────────────────────────────
 
-// Экспортируем функции для использования в других скриптах
+document.addEventListener('DOMContentLoaded', initAllRowFileUploads);
+
 window.fileHandler = {
     getAllFiles,
     getFilesToDelete,
     clearAllFiles,
     clearServerFiles,
     restoreServerFiles,
+    initRowFileUpload,
+    removeRowFiles,
+    removeFile,
+    removeServerFile,
+    generateRowId,
     sectionFiles,
-    serverFiles
+    serverFiles,
 };

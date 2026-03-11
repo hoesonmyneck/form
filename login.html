@@ -205,6 +205,8 @@
                 // Редирект на страницу форм
                 if (data.user.role === 'admin') {
                     window.location.href = '/admin';
+                } else if (data.user.formType === 'plans' || data.user.username === 'admin2') {
+                    window.location.href = '/index2';
                 } else {
                     window.location.href = '/index.html';
                 }

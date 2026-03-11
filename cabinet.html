@@ -266,6 +266,11 @@
             <select class="filter-select" id="orgFilter" onchange="filterForms()">
                 <option value="">Все организации</option>
             </select>
+            <select class="filter-select" id="typeFilter" onchange="filterForms()">
+                <option value="">Все типы</option>
+                <option value="soc">Соц. защита</option>
+                <option value="trud">Инспекция труда</option>
+            </select>
             <button class="btn btn-primary" onclick="downloadFilteredData()" style="margin-left: auto;">
                 <span>📥</span> Скачать текущую форму
             </button>
@@ -511,6 +516,7 @@
         function applyFilters(forms) {
             const userFilter = document.getElementById('userFilter').value;
             const orgFilter = document.getElementById('orgFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
 
             if (userFilter) {
                 forms = forms.filter(f => f.userId === userFilter);
@@ -520,6 +526,15 @@
                 forms = forms.filter(f => {
                     const org = f.userOrganization || f.organization;
                     return org === orgFilter;
+                });
+            }
+
+            if (typeFilter) {
+                forms = forms.filter(f => {
+                    const username = (f.username || '').toLowerCase();
+                    if (typeFilter === 'soc') return username.endsWith('_soc');
+                    if (typeFilter === 'trud') return username.endsWith('_trud');
+                    return true;
                 });
             }
 

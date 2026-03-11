@@ -45,13 +45,13 @@ function checkAuth() {
         if (data.success && data.user) {
             document.getElementById('userNameDisplay').textContent = data.user.fullName || data.user.username;
             
-            // Показываем кнопку админки если пользователь admin2
-            if (data.user.username === 'admin2' || data.user.role === 'admin') {
+            // Показываем кнопку админки если администратор
+            if (data.user.role === 'admin') {
                 document.getElementById('adminPanelBtn').style.display = 'block';
             }
             
-            // Проверяем права доступа к новым формам
-            if (data.user.username !== 'admin2') {
+            // Проверяем права доступа к формам планов
+            if (data.user.formType !== 'plans' && data.user.username !== 'admin2') {
                 alert('У вас нет доступа к этим формам');
                 window.location.href = '/index.html';
             }
