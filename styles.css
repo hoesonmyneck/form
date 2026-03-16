@@ -639,6 +639,17 @@ body {
     box-shadow: var(--shadow-lg);
 }
 
+.btn-delete-response {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: white;
+}
+
+.btn-delete-response:hover {
+    background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
 .btn-primary {
     background: var(--primary);
     color: white;

@@ -586,6 +586,36 @@ app.get('/api/documents/:id/download', authenticateToken, (req, res) => {
 });
 
 /**
+ * DELETE /api/forms/my — пользователь удаляет все свои JSON-формы
+ */
+app.delete('/api/forms/my', authenticateToken, (req, res) => {
+    try {
+        const db = readDB();
+        const toDelete = db.documents.filter(d => d.userId === req.user.id && d.type === 'json');
+
+        // Удаляем файлы с диска
+        toDelete.forEach(doc => {
+            if (doc.attachedFiles) {
+                for (const section in doc.attachedFiles) {
+                    for (const file of doc.attachedFiles[section]) {
+                        const filePath = path.join(UPLOADS_DIR, file.filename);
+                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                    }
+                }
+            }
+        });
+
+        db.documents = db.documents.filter(d => !(d.userId === req.user.id && d.type === 'json'));
+        writeDB(db);
+
+        res.json({ success: true, message: 'Ваши ответы удалены из общей базы', deletedCount: toDelete.length });
+    } catch (error) {
+        console.error('Ошибка удаления форм:', error);
+        res.status(500).json({ error: 'Ошибка при удалении' });
+    }
+});
+
+/**
  * DELETE /api/documents/:id
  * Удаление документа (только админ)
  */

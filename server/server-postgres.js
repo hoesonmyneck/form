@@ -445,6 +445,47 @@ app.get('/api/documents', authenticateToken, async (req, res) => {
 });
 
 /**
+ * DELETE /api/forms/my — пользователь удаляет все свои JSON-формы из БД
+ */
+app.delete('/api/forms/my', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM documents WHERE user_id = $1 AND type = $2',
+            [req.user.id, 'json']
+        );
+
+        // Удаляем прикреплённые файлы с диска
+        for (const doc of result.rows) {
+            if (doc.attached_files) {
+                for (const section in doc.attached_files) {
+                    for (const file of doc.attached_files[section]) {
+                        const filePath = path.join(UPLOADS_DIR, file.filename);
+                        if (fs.existsSync(filePath)) {
+                            fs.unlinkSync(filePath);
+                        }
+                    }
+                }
+            }
+        }
+
+        await pool.query(
+            'DELETE FROM documents WHERE user_id = $1 AND type = $2',
+            [req.user.id, 'json']
+        );
+
+        res.json({
+            success: true,
+            message: 'Ваши ответы удалены из общей базы',
+            deletedCount: result.rows.length
+        });
+
+    } catch (error) {
+        console.error('Ошибка удаления форм пользователя:', error);
+        res.status(500).json({ error: 'Ошибка при удалении' });
+    }
+});
+
+/**
  * DELETE /api/documents/:id
  */
 app.delete('/api/documents/:id', authenticateToken, requireAdmin, async (req, res) => {

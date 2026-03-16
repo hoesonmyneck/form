@@ -606,14 +606,16 @@
                         const tableData = formData.tables[tableId];
                         
                         // Поддержка нового формата (с headers и rows) и старого (просто массив)
-                        const rows = tableData.rows || tableData;
+                        const rows   = tableData.rows   || tableData;
+                        const rowIds = tableData.rowIds || [];
                         
-                        rows.forEach(row => {
+                        rows.forEach((row, rowIndex) => {
                             allRows.push({
                                 user: userInfo,
                                 tableId: tableId,
+                                rowId: rowIds[rowIndex] || '',
                                 cells: row,
-                                attachedFiles: form.attachedFiles || {} // Добавляем файлы
+                                attachedFiles: form.attachedFiles || {}
                             });
                         });
                     }
@@ -627,13 +629,18 @@
             // Стандартные заголовки для каждой формы (ВСЕГДА используем их)
             // Заголовки соответствуют ВСЕМ колонкам таблицы (включая статичные ячейки)
             const defaultHeaders = {
-                // Форма 1 и 2: 8 колонок
                 1: ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
                 2: ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
-                // Форма 3: 9 колонок (включая Предмет спора)
-                3: ['Предмет спора', 'Количество квартал/год', 'Согласовано (квартал)', 'Отказано (квартал)', 'На рассмотрении (квартал)', 'Согласовано (год)', 'Отказано (год)', 'На рассмотрении (год)', 'Примечание'],
-                // Форма 4: 6 колонок
+                // Форма 3: Раздел + 6 колонок нового формата
+                3: ['Раздел', 'Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание'],
                 4: ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание']
+            };
+
+            // Маппинг tableId → название раздела (для формы 3)
+            const sectionNames = {
+                'form3-appeal':     'Апелляционная инстанция',
+                'form3-cassation':  'Кассационная инстанция',
+                'form3-supervision':'Надзорная инстанция'
             };
             
             // ВСЕГДА используем стандартные заголовки для текущей формы
@@ -669,19 +676,31 @@
             allRows.forEach((row, index) => {
                 html += '<tr>';
                 
-                // Все ячейки данных (теперь данные содержат ВСЕ колонки, включая первую)
-                row.cells.forEach((cell, cellIndex) => {
-                    if (cellIndex === 0) {
-                        // Первая колонка - используем сквозную нумерацию вместо данных из ячейки
-                        html += `<td style="font-weight: 600; background: #f8fafc; text-align: center;">${index + 1}</td>`;
-                    } else {
+                if (currentTab === 3) {
+                    // Форма 3: первая колонка — название раздела, затем все 6 ячеек данных
+                    const sectionLabel = sectionNames[row.tableId] || row.tableId;
+                    html += `<td style="font-weight:600; background:#eef2f7; white-space:nowrap;">${escapeHtml(sectionLabel)}</td>`;
+                    row.cells.forEach(cell => {
                         html += `<td>${escapeHtml(cell || '')}</td>`;
-                    }
-                });
+                    });
+                } else {
+                    // Формы 1, 2, 4: первая колонка — сквозной номер
+                    row.cells.forEach((cell, cellIndex) => {
+                        if (cellIndex === 0) {
+                            html += `<td style="font-weight:600; background:#f8fafc; text-align:center;">${index + 1}</td>`;
+                        } else {
+                            html += `<td>${escapeHtml(cell || '')}</td>`;
+                        }
+                    });
+                }
                 
                 // Колонка с файлами (только для этой конкретной секции)
                 const allFilesForForm = row.attachedFiles || {};
-                const filesForThisSection = allFilesForForm[row.tableId] || [];
+                // Новый формат: ключ = tableId__rowId; старый: ключ = tableId
+                const rowKey = row.rowId ? (row.tableId + '__' + row.rowId) : null;
+                const filesForThisSection = (rowKey && allFilesForForm[rowKey])
+                    ? allFilesForForm[rowKey]
+                    : (allFilesForForm[row.tableId] || []);
                 
                 if (filesForThisSection.length > 0) {
                     html += '<td>';
@@ -994,7 +1013,9 @@
             };
 
             try {
-                const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType, AlignmentType, BorderStyle } = docx;
+                const docxLib = window.docx || (typeof docx !== 'undefined' ? docx : null);
+                if (!docxLib) throw new Error('Библиотека docx.umd.js не загружена. Убедитесь что файл docx.umd.js находится в папке проекта.');
+                const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType, AlignmentType, BorderStyle } = docxLib;
 
                 // Создаём строки таблицы
                 const tableRows = [];
@@ -1012,9 +1033,25 @@
                 }));
 
                 // Данные
+                const docxSectionNames = {
+                    'form3-appeal':     'Апелляционная инстанция',
+                    'form3-cassation':  'Кассационная инстанция',
+                    'form3-supervision':'Надзорная инстанция'
+                };
                 allRows.forEach((row, index) => {
-                    tableRows.push(new TableRow({
-                        children: row.cells.map((cell, cellIndex) => new TableCell({
+                    let cells;
+                    if (currentTab === 3) {
+                        const sectionName = docxSectionNames[row.tableId] || row.tableId;
+                        cells = [
+                            new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: sectionName, bold: true, size: 18 })] })]
+                            }),
+                            ...row.cells.map(cell => new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: cell || '', size: 18 })] })]
+                            }))
+                        ];
+                    } else {
+                        cells = row.cells.map((cell, cellIndex) => new TableCell({
                             children: [new Paragraph({
                                 children: [new TextRun({ 
                                     text: cellIndex === 0 ? String(index + 1) : (cell || ''), 
@@ -1022,8 +1059,9 @@
                                 })],
                                 alignment: cellIndex === 0 ? AlignmentType.CENTER : AlignmentType.LEFT
                             })]
-                        }))
-                    }));
+                        }));
+                    }
+                    tableRows.push(new TableRow({ children: cells }));
                 });
 
                 // Создаём документ

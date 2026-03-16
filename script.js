@@ -238,21 +238,30 @@ function restoreFormData(formId, formData) {
         }
         
         // Заполняем данные
+        const savedRowIds = savedTable.rowIds || [];
         const rows = tbody.querySelectorAll('tr');
         savedRows.forEach((rowData, rowIndex) => {
-            if (rows[rowIndex]) {
-                const cells = rows[rowIndex].querySelectorAll('td');
-                let fieldIndex = 0;
-                
-                cells.forEach((td, cellIndex) => {
-                    const input = td.querySelector('textarea, input');
-                    if (input && rowData[cellIndex] !== undefined) {
-                        // Если в ячейке есть input/textarea - заполняем его
-                        input.value = rowData[cellIndex];
-                    }
-                    // Статичные ячейки (без input) не трогаем
-                });
+            if (!rows[rowIndex]) return;
+
+            // Восстанавливаем rowId для привязки файлов
+            if (savedRowIds[rowIndex]) {
+                rows[rowIndex].dataset.rowId = savedRowIds[rowIndex];
+                const fileCell = rows[rowIndex].querySelector('.file-cell');
+                if (fileCell && window.fileHandler) {
+                    window.fileHandler.initRowFileUpload(tableId, savedRowIds[rowIndex], fileCell);
+                }
             }
+
+            // Заполняем ячейки, пропуская file-cell
+            let dataIdx = 0;
+            rows[rowIndex].querySelectorAll('td').forEach(td => {
+                if (td.classList.contains('file-cell')) return;
+                const input = td.querySelector('textarea, input:not([type="file"])');
+                if (input && rowData[dataIdx] !== undefined) {
+                    input.value = rowData[dataIdx];
+                }
+                dataIdx++;
+            });
         });
     }
     
@@ -687,11 +696,13 @@ async function saveFormsAsJSON(data) {
             formDataToSend.append('formData', JSON.stringify(formData));
             
             // Добавляем файлы для всех секций этой формы
+            let fileCount = 0;
             for (const section in allFiles) {
                 if (section.startsWith(`form${formNumber}-`)) {
                     const files = allFiles[section] || [];
                     files.forEach((file, index) => {
                         formDataToSend.append(`files_${section}`, file);
+                        fileCount++;
                     });
                 }
             }
@@ -942,6 +953,63 @@ async function loadFromServer(formId) {
     const data = await response.json();
     restoreAllFormsData(data);
 }
+
+// =====================================================
+// УДАЛЕНИЕ СВОЕГО ОТВЕТА ИЗ ОБЩЕЙ БАЗЫ
+// =====================================================
+
+async function deleteMyResponse() {
+    const confirmed = confirm(
+        'Вы уверены, что хотите удалить свой ответ из общей базы?\n\n' +
+        'Данные в форме останутся заполненными, но больше не будут видны администратору.\n\n' +
+        'Чтобы снова отправить — нажмите «Сохранить».'
+    );
+    if (!confirmed) return;
+
+    const token = localStorage.getItem('accessToken');
+    const btn = document.getElementById('deleteResponseBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-icon">⏳</span> Удаление...';
+
+    try {
+        const response = await fetch('/api/forms/my', {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            // Очищаем серверные файлы из памяти (они удалены с сервера)
+            if (window.fileHandler && window.fileHandler.clearServerFiles) {
+                window.fileHandler.clearServerFiles();
+            }
+            // Перерисовываем file-cell чтобы убрать бейджи сохранённых файлов
+            document.querySelectorAll('tbody[id]').forEach(tbody => {
+                tbody.querySelectorAll('tr[data-row-id]').forEach(tr => {
+                    const key = tbody.id + '__' + tr.dataset.rowId;
+                    const cell = tr.querySelector('.file-cell');
+                    if (cell && window.fileHandler) {
+                        window.fileHandler.initRowFileUpload(tbody.id, tr.dataset.rowId, cell);
+                    }
+                });
+            });
+
+            showNotification('Ответ удалён из общей базы. Форма сохранена локально.', 'success');
+        } else {
+            showNotification('Ошибка при удалении: ' + (result.error || 'неизвестная ошибка'), 'error');
+        }
+    } catch (err) {
+        console.error('Ошибка удаления:', err);
+        showNotification('Ошибка соединения с сервером', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+window.deleteMyResponse = deleteMyResponse;
 
 // Делаем функцию закрытия модального окна глобальной
 window.closeModal = closeModal;
