@@ -4,7 +4,13 @@
  * Использует библиотеку docx.js
  */
 
-// Импортируем через CDN в HTML, здесь используем глобальный объект docx
+// Удаляет управляющие символы, недопустимые в XML (ломают DOCX)
+function sanitizeXml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\uFFFE\uFFFF]/g, '')
+        .replace(/[\uD800-\uDFFF]/g, '');
+}
 
 /**
  * Генерация документа Формы №1 - Отчет о движении гражданских дел
@@ -19,9 +25,9 @@ async function generateForm1Document(data) {
     const day = headerData.input_0 || '__';
     const year = headerData.input_1 || '2024';
     const orderNumber = headerData.input_2 || '_______';
-    const reportDate = headerData.input_3 || '________';
-    const reportYear = headerData.input_4 || '__';
-    const orgName = headerData.input_5 || '____________________';
+    const reportDate = sanitizeXml(headerData.input_3) || '________';
+    const reportYear = sanitizeXml(headerData.input_4) || '__';
+    const orgName = sanitizeXml(headerData.input_5) || '____________________';
     
     const doc = new Document({
         sections: [{
@@ -125,9 +131,9 @@ async function generateForm2Document(data) {
     const headerData = data.forms.form2.header;
     const tables = data.forms.form2.tables;
     
-    const quarter = headerData.input_0 || '4';
-    const year = headerData.input_1 || '2025';
-    const orgName = headerData.input_2 || '____________________';
+    const quarter = sanitizeXml(headerData.input_0) || '4';
+    const year = sanitizeXml(headerData.input_1) || '2025';
+    const orgName = sanitizeXml(headerData.input_2) || '____________________';
     
     const doc = new Document({
         sections: [{
@@ -191,9 +197,9 @@ async function generateForm3Document(data) {
     const cassationData = (data.forms.form3.tables['form3-cassation']?.rows || data.forms.form3.tables['form3-cassation']) || [];
     const supervisionData = (data.forms.form3.tables['form3-supervision']?.rows || data.forms.form3.tables['form3-supervision']) || [];
     
-    const quarter = headerData.input_0 || '4';
-    const year = headerData.input_1 || '2025';
-    const orgName = headerData.input_2 || '____________________';
+    const quarter = sanitizeXml(headerData.input_0) || '4';
+    const year = sanitizeXml(headerData.input_1) || '2025';
+    const orgName = sanitizeXml(headerData.input_2) || '____________________';
     
     // Названия строк для формы 3
     const rowLabels = [
@@ -274,9 +280,9 @@ async function generateForm4Document(data) {
     const headerData = data.forms.form4.header;
     const tables = data.forms.form4.tables;
     
-    const reportDate = headerData.input_0 || '________';
-    const reportYear = headerData.input_1 || '__';
-    const orgName = headerData.input_2 || '____________________';
+    const reportDate = sanitizeXml(headerData.input_0) || '________';
+    const reportYear = sanitizeXml(headerData.input_1) || '__';
+    const orgName = sanitizeXml(headerData.input_2) || '____________________';
     
     const sections = [
         { title: 'Частные определения суда', tableId: 'form4-court-definitions' },
@@ -388,7 +394,7 @@ function createReportTable(rowsData) {
             cells.push(new TableCell({
                 borders,
                 children: [new Paragraph({
-                    children: [new TextRun({ text: row[i] || '', size: 20 })]
+                    children: [new TextRun({ text: sanitizeXml(row[i]), size: 20 })]
                 })]
             }));
         }
@@ -451,8 +457,8 @@ function createForm1ThirdPartyTable(rowsData) {
         ? rowsData.map((row, i) => new TableRow({
             children: [
                 new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: String(i + 1), size: 20 })] })] }),
-                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: row[1] || '', size: 20 })] })] }),
-                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: row[2] || '', size: 20 })] })] }),
+                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: sanitizeXml(row[1]), size: 20 })] })] }),
+                new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: sanitizeXml(row[2]), size: 20 })] })] }),
             ]
         }))
         : [1, 2, 3].map(i => new TableRow({
@@ -501,7 +507,7 @@ function createForm2DefendantsTable(rowsData) {
             children: [
                 new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: String(i + 1), size: 20 })] })] }),
                 ...Array(8).fill(null).map((_, j) =>
-                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: row[j + 1] || '', size: 20 })] })] })
+                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: sanitizeXml(row[j + 1]), size: 20 })] })] })
                 )
             ]
         }))
@@ -545,7 +551,7 @@ function createForm3Table(rowsData, rowLabels) {
             children: [
                 new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: label, size: 18 })] })] }),
                 ...Array(5).fill(null).map((_, i) =>
-                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: rowData[i + 1] || '', size: 18 })] })] })
+                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: sanitizeXml(rowData[i + 1]), size: 18 })] })] })
                 )
             ]
         });
@@ -605,7 +611,7 @@ function createForm4Table(rowsData) {
             children: [
                 new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: String(index + 1), size: 18 })] })] }),
                 ...Array(5).fill(null).map((_, i) => 
-                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: row[i] || '', size: 18 })] })] })
+                    new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: sanitizeXml(row[i]), size: 18 })] })] })
                 )
             ]
         });

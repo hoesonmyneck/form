@@ -961,6 +961,14 @@
             }
         });
 
+        // Удаляет символы, недопустимые в XML (ломают DOCX)
+        function sanitizeXml(text) {
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\uFFFE\uFFFF]/g, '')
+                .replace(/[\uD800-\uDFFF]/g, ''); // одинокие суррогаты
+        }
+
         // Скачивание отфильтрованных данных как DOCX
         async function downloadFilteredData() {
             // Получаем текущие отфильтрованные формы
@@ -980,10 +988,13 @@
                     for (const tableId in formData.tables) {
                         const tableData = formData.tables[tableId];
                         const rows = tableData.rows || tableData;
-                        rows.forEach(row => {
+                        const rowIds = tableData.rowIds || [];
+                        rows.forEach((row, rowIndex) => {
                             allRows.push({
                                 user: form.userFullName || form.username,
                                 organization: form.userOrganization || form.organization,
+                                tableId: tableId,
+                                rowId: rowIds[rowIndex] || '',
                                 cells: row
                             });
                         });
@@ -1000,7 +1011,7 @@
             const defaultHeaders = {
                 1: ['№', 'Истец', 'Ответчик', 'Суть спора', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
                 2: ['№', 'Истец', 'Ответчик', 'Суть спора', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
-                3: ['Предмет спора', 'Кол-во кв/год', 'Согласовано (кв)', 'Отказано (кв)', 'На рассм. (кв)', 'Согласовано (год)', 'Отказано (год)', 'На рассм. (год)', 'Примечание'],
+                3: ['Раздел', 'Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание'],
                 4: ['№', 'Вид акта', 'Вид нарушения', 'Принятые меры', 'Обжалование', 'Примечание']
             };
             
@@ -1044,17 +1055,17 @@
                         const sectionName = docxSectionNames[row.tableId] || row.tableId;
                         cells = [
                             new TableCell({
-                                children: [new Paragraph({ children: [new TextRun({ text: sectionName, bold: true, size: 18 })] })]
+                                children: [new Paragraph({ children: [new TextRun({ text: sanitizeXml(sectionName), bold: true, size: 18 })] })]
                             }),
                             ...row.cells.map(cell => new TableCell({
-                                children: [new Paragraph({ children: [new TextRun({ text: cell || '', size: 18 })] })]
+                                children: [new Paragraph({ children: [new TextRun({ text: sanitizeXml(cell), size: 18 })] })]
                             }))
                         ];
                     } else {
                         cells = row.cells.map((cell, cellIndex) => new TableCell({
                             children: [new Paragraph({
                                 children: [new TextRun({ 
-                                    text: cellIndex === 0 ? String(index + 1) : (cell || ''), 
+                                    text: cellIndex === 0 ? String(index + 1) : sanitizeXml(cell), 
                                     size: 20 
                                 })],
                                 alignment: cellIndex === 0 ? AlignmentType.CENTER : AlignmentType.LEFT
