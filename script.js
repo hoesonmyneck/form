@@ -291,8 +291,6 @@ function initTabs() {
             const tabId = btn.dataset.tab;
             document.getElementById(tabId).classList.add('active');
             
-            // Прокручиваем к верху формы
-            window.scrollTo({ top: 200, behavior: 'smooth' });
         });
     });
 }
@@ -514,7 +512,7 @@ function collectTableData(section) {
         const rowIds = [];
 
         tbody.querySelectorAll('tr').forEach(tr => {
-            rowIds.push(tr.dataset.rowId || '');
+            const rowId = tr.dataset.rowId || '';
 
             const row = [];
             tr.querySelectorAll('td').forEach(td => {
@@ -526,7 +524,15 @@ function collectTableData(section) {
                     row.push(td.textContent.trim());
                 }
             });
-            rows.push(row);
+
+            // Пропускаем строки где все редактируемые поля пусты
+            const inputs = Array.from(tr.querySelectorAll('textarea, input:not([type="file"])'));
+            const hasData = inputs.some(el => el.value.trim() !== '');
+
+            if (hasData) {
+                rows.push(row);
+                rowIds.push(rowId);
+            }
         });
 
         tables[tableId] = { colCount, rows, rowIds };
