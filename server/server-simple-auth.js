@@ -319,6 +319,25 @@ app.post('/api/forms/save', authenticateToken, upload.any(), (req, res) => {
             }
         }
 
+        // Обрабатываем retained-файлы (уже на диске, просто регистрируем снова)
+        for (const key in req.body) {
+            if (key.startsWith('retained_')) {
+                const section = key.replace('retained_', '');
+                try {
+                    const files = JSON.parse(req.body[key]);
+                    const existing = files.filter(f => {
+                        return f.filename && fs.existsSync(path.join(UPLOADS_DIR, f.filename));
+                    });
+                    if (existing.length > 0) {
+                        if (!attachedFiles[section]) attachedFiles[section] = [];
+                        attachedFiles[section].push(...existing);
+                    }
+                } catch (e) {
+                    console.warn('Ошибка парсинга retained файлов:', e);
+                }
+            }
+        }
+
         const document = {
             id: existingIndex >= 0 ? db.documents[existingIndex].id : generateId(),
             type: 'json',
@@ -593,17 +612,8 @@ app.delete('/api/forms/my', authenticateToken, (req, res) => {
         const db = readDB();
         const toDelete = db.documents.filter(d => d.userId === req.user.id && d.type === 'json');
 
-        // Удаляем файлы с диска
-        toDelete.forEach(doc => {
-            if (doc.attachedFiles) {
-                for (const section in doc.attachedFiles) {
-                    for (const file of doc.attachedFiles[section]) {
-                        const filePath = path.join(UPLOADS_DIR, file.filename);
-                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-                    }
-                }
-            }
-        });
+        // Файлы намеренно НЕ удаляем с диска — при повторном сохранении
+        // они подхватятся как retained-файлы без перезагрузки
 
         db.documents = db.documents.filter(d => !(d.userId === req.user.id && d.type === 'json'));
         writeDB(db);

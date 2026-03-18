@@ -269,6 +269,25 @@ app.post('/api/forms/save', authenticateToken, upload.any(), async (req, res) =>
             }
         }
 
+        // Обрабатываем retained-файлы (уже существуют на диске, просто регистрируем снова)
+        for (const key in req.body) {
+            if (key.startsWith('retained_')) {
+                const section = key.replace('retained_', '');
+                try {
+                    const files = JSON.parse(req.body[key]);
+                    const existing = files.filter(f => {
+                        return f.filename && fs.existsSync(path.join(UPLOADS_DIR, f.filename));
+                    });
+                    if (existing.length > 0) {
+                        if (!attachedFiles[section]) attachedFiles[section] = [];
+                        attachedFiles[section].push(...existing);
+                    }
+                } catch (e) {
+                    console.warn('Ошибка парсинга retained файлов:', e);
+                }
+            }
+        }
+
         // Проверяем существующую запись
         const existingResult = await pool.query(
             'SELECT id, attached_files FROM documents WHERE user_id = $1 AND form_number = $2 AND type = $3',
@@ -454,19 +473,8 @@ app.delete('/api/forms/my', authenticateToken, async (req, res) => {
             [req.user.id, 'json']
         );
 
-        // Удаляем прикреплённые файлы с диска
-        for (const doc of result.rows) {
-            if (doc.attached_files) {
-                for (const section in doc.attached_files) {
-                    for (const file of doc.attached_files[section]) {
-                        const filePath = path.join(UPLOADS_DIR, file.filename);
-                        if (fs.existsSync(filePath)) {
-                            fs.unlinkSync(filePath);
-                        }
-                    }
-                }
-            }
-        }
+        // Файлы намеренно НЕ удаляем с диска — пользователь может
+        // повторно сохранить форму и файлы подхватятся без перезагрузки
 
         await pool.query(
             'DELETE FROM documents WHERE user_id = $1 AND type = $2',

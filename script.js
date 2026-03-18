@@ -180,13 +180,12 @@ async function loadFormsFromServer() {
             
             if (data.success && data.found && data.formData) {
                 console.log(`✅ Восстанавливаем форму ${formNum}`);
-                // Восстанавливаем данные формы
                 restoreFormData(`form${formNum}`, data.formData);
-                
-                // Восстанавливаем прикрепленные файлы если они есть
                 if (data.attachedFiles && window.fileHandler) {
                     window.fileHandler.restoreServerFiles(data.attachedFiles);
                 }
+                // Раз данные есть в БД — retained state больше не нужен
+                localStorage.removeItem('formsRetainedState');
             } else {
                 console.log(`ℹ️ Форма ${formNum} не найдена на сервере`);
             }
@@ -196,6 +195,24 @@ async function loadFormsFromServer() {
     }
     
     console.log('✅ Загрузка форм завершена');
+
+    // Если пользователь удалил ответ и перешёл на другую страницу —
+    // восстанавливаем форму и файлы из localStorage
+    const retainedRaw = localStorage.getItem('formsRetainedState');
+    if (retainedRaw) {
+        try {
+            const retained = JSON.parse(retainedRaw);
+            if (retained.formData) {
+                restoreAllFormsData(retained.formData);
+            }
+            if (retained.serverFiles && window.fileHandler) {
+                window.fileHandler.restoreServerFiles(retained.serverFiles);
+            }
+            console.log('📦 Восстановлено из localStorage (retained state)');
+        } catch (e) {
+            console.warn('Ошибка восстановления из localStorage:', e);
+        }
+    }
 }
 
 // Восстановление данных конкретной формы
@@ -722,6 +739,17 @@ async function saveFormsAsJSON(data) {
                     }
                 }
             }
+
+            // Передаём уже существующие на сервере файлы (retained) — чтобы не перезагружать
+            const serverFilesMap = (window.fileHandler && window.fileHandler.serverFiles) || {};
+            for (const section in serverFilesMap) {
+                if (section.startsWith(`form${formNumber}-`)) {
+                    const files = serverFilesMap[section] || [];
+                    if (files.length > 0) {
+                        formDataToSend.append(`retained_${section}`, JSON.stringify(files));
+                    }
+                }
+            }
             
             const response = await fetch('/api/forms/save', {
                 method: 'POST',
@@ -748,6 +776,9 @@ async function saveFormsAsJSON(data) {
     if (savedCount > 0) {
         // Очищаем только новые файлы и применяем удаления
         window.fileHandler.clearAllFiles();
+        
+        // Данные успешно сохранены — retained state больше не нужен
+        localStorage.removeItem('formsRetainedState');
         
         // Перезагружаем файлы с сервера чтобы показать актуальное состояние
         await reloadFilesFromServer();
@@ -987,22 +1018,22 @@ async function deleteMyResponse() {
         const result = await response.json();
 
         if (response.ok && result.success) {
-            // Очищаем серверные файлы из памяти (они удалены с сервера)
-            if (window.fileHandler && window.fileHandler.clearServerFiles) {
-                window.fileHandler.clearServerFiles();
+            // Сохраняем снимок форм + метаданные файлов в localStorage
+            // чтобы восстановить после перезагрузки страницы
+            try {
+                const formSnapshot = collectFormData();
+                const fileSnapshot = (window.fileHandler && window.fileHandler.serverFiles)
+                    ? JSON.parse(JSON.stringify(window.fileHandler.serverFiles))
+                    : {};
+                localStorage.setItem('formsRetainedState', JSON.stringify({
+                    formData: formSnapshot,
+                    serverFiles: fileSnapshot
+                }));
+            } catch (e) {
+                console.warn('Не удалось сохранить состояние форм:', e);
             }
-            // Перерисовываем file-cell чтобы убрать бейджи сохранённых файлов
-            document.querySelectorAll('tbody[id]').forEach(tbody => {
-                tbody.querySelectorAll('tr[data-row-id]').forEach(tr => {
-                    const key = tbody.id + '__' + tr.dataset.rowId;
-                    const cell = tr.querySelector('.file-cell');
-                    if (cell && window.fileHandler) {
-                        window.fileHandler.initRowFileUpload(tbody.id, tr.dataset.rowId, cell);
-                    }
-                });
-            });
 
-            showNotification('Ответ удалён из общей базы. Форма сохранена локально.', 'success');
+            showNotification('Ответ удалён из общей базы. Форма и файлы сохранены локально.', 'success');
         } else {
             showNotification('Ошибка при удалении: ' + (result.error || 'неизвестная ошибка'), 'error');
         }
