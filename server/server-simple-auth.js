@@ -882,6 +882,9 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) =
  * Сохранение планов работы территориальных департаментов
  */
 app.post('/api/plans/save', authenticateToken, (req, res) => {
+    if (req.user.role === 'viewer') {
+        return res.status(403).json({ error: 'Просмотр только для чтения' });
+    }
     try {
         const { plans, notes } = req.body;
         if (!plans) return res.status(400).json({ error: 'Отсутствуют данные планов' });
@@ -1003,9 +1006,9 @@ app.get('/api/plans/load', authenticateToken, (req, res) => {
  */
 // /api/plans/all — алиас для admin2.html, читает тот же общий документ
 app.get('/api/plans/all', authenticateToken, (req, res) => {
-    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Доступ запрещён' });
-    }
+    const allowed = req.user.formType === 'plans' &&
+        (req.user.role === 'admin' || req.user.role === 'viewer');
+    if (!allowed) return res.status(403).json({ error: 'Доступ запрещён' });
 
     try {
         const db = readDB();

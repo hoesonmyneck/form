@@ -1,6 +1,7 @@
-// Индекс региона текущего пользователя (null = admin, видит всё)
+// Индекс региона текущего пользователя (null = admin/viewer, видит всё)
 let userRegionIndex = null;
 let userIsAdmin = false;
+let userIsViewer = false;
 
 // Список регионов
 const REGIONS = [
@@ -64,6 +65,11 @@ function checkAuth() {
             // Сохраняем флаги роли и regionIndex
             if (data.user.role === 'admin') {
                 userIsAdmin = true;
+                document.getElementById('adminPanelBtn').style.display = 'block';
+            } else if (data.user.role === 'viewer') {
+                userIsViewer = true;
+                document.getElementById('adminPanelBtn').style.display = 'block';
+                applyViewerMode();
             }
 
             if (data.user.regionIndex !== null && data.user.regionIndex !== undefined) {
@@ -136,6 +142,27 @@ function applyRegionalFilter() {
             row.style.display = (idx === userRegionIndex) ? '' : 'none';
         });
     }
+}
+
+// Режим просмотра (viewer): все поля readonly, кнопка сохранения скрыта
+function applyViewerMode() {
+    if (!userIsViewer) return;
+
+    // Блокируем все поля ввода
+    document.querySelectorAll('.report-table input').forEach(input => {
+        input.disabled = true;
+        input.style.background = '#f3f4f6';
+        input.style.cursor = 'not-allowed';
+    });
+
+    // Скрываем кнопки примечаний
+    document.querySelectorAll('.note-btn').forEach(btn => {
+        btn.style.display = 'none';
+    });
+
+    // Скрываем кнопку сохранения
+    const saveBtn = document.querySelector('.btn-save');
+    if (saveBtn) saveBtn.style.display = 'none';
 }
 
 // Расчет коэффициента исполнения
@@ -333,6 +360,9 @@ async function loadPlansFromServer() {
         }
     } catch (error) {
         console.error('Ошибка загрузки:', error);
+    } finally {
+        // После загрузки данных применяем viewer-режим (инпуты могли пересоздаться)
+        if (userIsViewer) applyViewerMode();
     }
 }
 
