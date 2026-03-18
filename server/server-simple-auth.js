@@ -19,6 +19,29 @@ const PORT = process.env.PORT || 3000;
 // =====================================================
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
+
+// =====================================================
+// РЕГИОНАЛЬНЫЕ АККАУНТЫ ДЛЯ ПЛАНОВ
+// =====================================================
+const PLAN_REGIONS = [
+    'г. Астана', 'г. Алматы', 'г. Шымкент',
+    'Акмолинская область', 'Актюбинская область', 'Алматинская область',
+    'Атырауская область', 'Восточно-Казахстанская область', 'Жамбылская область',
+    'Западно-Казахстанская область', 'Карагандинская область', 'Костанайская область',
+    'Кызылординская область', 'Мангистауская область', 'Павлодарская область',
+    'Северо-Казахстанская область', 'Туркестанская область', 'Область Абай',
+    'Область Улытау', 'Область Жетысу'
+];
+
+const REGION_USERS = {
+    'astana': 0, 'almaty': 1, 'shymkent': 2,
+    'akmola': 3, 'aktobe': 4, 'almatyreg': 5,
+    'atyrau': 6, 'vko': 7, 'zhambyl': 8,
+    'zko': 9, 'karaganda': 10, 'kostanay': 11,
+    'kyzylorda': 12, 'mangistau': 13, 'pavlodar': 14,
+    'sko': 15, 'turkestan': 16, 'abay': 17,
+    'ulytau': 18, 'zhetisu': 19
+};
 const DB_FILE = path.join(__dirname, 'documents.json');
 const USERS_FILE = path.join(__dirname, 'users.json');
 
@@ -704,6 +727,9 @@ app.get('/api/stats', authenticateToken, (req, res) => {
  * Профиль пользователя
  */
 app.get('/api/user/profile', authenticateToken, (req, res) => {
+    const regionIndex = REGION_USERS.hasOwnProperty(req.user.username)
+        ? REGION_USERS[req.user.username]
+        : null;
     res.json({
         success: true,
         user: {
@@ -712,7 +738,9 @@ app.get('/api/user/profile', authenticateToken, (req, res) => {
             email: req.user.email,
             fullName: req.user.fullName,
             organization: req.user.organization,
-            role: req.user.role
+            role: req.user.role,
+            formType: req.user.formType || 'standard',
+            regionIndex
         }
     });
 });
@@ -856,49 +884,78 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) =
 app.post('/api/plans/save', authenticateToken, (req, res) => {
     try {
         const { plans, notes } = req.body;
-        
-        if (!plans) {
-            return res.status(400).json({ error: 'Отсутствуют данные планов' });
-        }
-        
+        if (!plans) return res.status(400).json({ error: 'Отсутствуют данные планов' });
+
         const db = readDB();
-        
-        // Ищем существующую запись для этого пользователя
-        const existingIndex = db.documents.findIndex(
-            doc => doc.userId === req.user.id && doc.type === 'plans'
+        const usersData = readUsers();
+        const regionIndex = REGION_USERS[req.user.username];
+
+        // Находим пользователя-администратора планов (владельца общего документа)
+        const adminUser = usersData.users.find(u => u.role === 'admin' && u.formType === 'plans');
+        if (!adminUser) return res.status(500).json({ error: 'Не найден администратор планов' });
+
+        // Ищем общий документ планов (принадлежит admin2)
+        const sharedIndex = db.documents.findIndex(
+            doc => doc.userId === adminUser.id && doc.type === 'plans'
         );
-        
-        const document = {
-            id: existingIndex >= 0 ? db.documents[existingIndex].id : generateId(),
+
+        let sharedDoc = sharedIndex >= 0 ? db.documents[sharedIndex] : null;
+        let sharedPlans = (sharedDoc && sharedDoc.plans) ? { ...sharedDoc.plans } : {};
+        let sharedNotes = (sharedDoc && sharedDoc.notes) ? { ...sharedDoc.notes } : {};
+
+        // Инициализируем пустую структуру если нужно
+        for (let i = 1; i <= 8; i++) {
+            const planId = `plan${i}`;
+            if (!sharedPlans[planId]) {
+                sharedPlans[planId] = PLAN_REGIONS.map((r, idx) => [idx + 1, r, '', '', '']);
+                sharedPlans[planId].push(['-', 'Всего', '', '', '']);
+            }
+        }
+
+        if (regionIndex !== undefined) {
+            // Региональный пользователь: обновляем только свою строку
+            for (let i = 1; i <= 8; i++) {
+                const planId = `plan${i}`;
+                if (plans[planId] && plans[planId][regionIndex]) {
+                    sharedPlans[planId][regionIndex] = plans[planId][regionIndex];
+                }
+            }
+            Object.assign(sharedNotes, notes || {});
+            console.log(`📝 Обновлена строка [${regionIndex}] от ${req.user.username}`);
+        } else {
+            // Администратор: перезаписывает всю таблицу
+            for (let i = 1; i <= 8; i++) {
+                const planId = `plan${i}`;
+                if (plans[planId]) sharedPlans[planId] = plans[planId];
+            }
+            Object.assign(sharedNotes, notes || {});
+            console.log(`📝 Обновлены все планы от admin (${req.user.username})`);
+        }
+
+        const updatedDoc = {
+            id: sharedDoc ? sharedDoc.id : generateId(),
             type: 'plans',
-            plans: plans,
-            notes: notes || {},
-            organization: req.user.organization || 'Не указано',
+            plans: sharedPlans,
+            notes: sharedNotes,
+            organization: adminUser.organization || '',
             submittedAt: new Date().toISOString(),
             uploadedAt: new Date().toISOString(),
-            userId: req.user.id,
-            username: req.user.username,
-            userFullName: req.user.fullName,
-            userEmail: req.user.email,
-            userOrganization: req.user.organization
+            userId: adminUser.id,
+            username: adminUser.username,
+            userFullName: adminUser.fullName,
+            userEmail: adminUser.email,
+            userOrganization: adminUser.organization
         };
-        
-        if (existingIndex >= 0) {
-            db.documents[existingIndex] = document;
-            console.log(`📝 Обновлены планы (Пользователь: ${req.user.username})`);
+
+        if (sharedIndex >= 0) {
+            db.documents[sharedIndex] = updatedDoc;
         } else {
-            db.documents.unshift(document);
-            console.log(`✅ Сохранены планы (Пользователь: ${req.user.username})`);
+            db.documents.unshift(updatedDoc);
         }
-        
+
         writeDB(db);
-        
-        res.json({
-            success: true,
-            message: 'Планы успешно сохранены',
-            document
-        });
-        
+        res.json({ success: true, message: 'Планы успешно сохранены' });
+
     } catch (error) {
         console.error('Ошибка сохранения планов:', error);
         res.status(500).json({ error: 'Ошибка при сохранении планов' });
@@ -912,21 +969,20 @@ app.post('/api/plans/save', authenticateToken, (req, res) => {
 app.get('/api/plans/load', authenticateToken, (req, res) => {
     try {
         const db = readDB();
-        
-        // Ищем сохранённые планы для этого пользователя
+        const usersData = readUsers();
+
+        // Все читают из единого общего документа (принадлежит admin2)
+        const adminUser = usersData.users.find(u => u.role === 'admin' && u.formType === 'plans');
+        if (!adminUser) return res.json({ success: true, found: false, plans: null, notes: {} });
+
         const document = db.documents.find(
-            doc => doc.userId === req.user.id && doc.type === 'plans'
+            doc => doc.userId === adminUser.id && doc.type === 'plans'
         );
-        
+
         if (!document) {
-            return res.json({
-                success: true,
-                found: false,
-                plans: null,
-                notes: {}
-            });
+            return res.json({ success: true, found: false, plans: null, notes: {} });
         }
-        
+
         res.json({
             success: true,
             found: true,
@@ -934,9 +990,47 @@ app.get('/api/plans/load', authenticateToken, (req, res) => {
             notes: document.notes || {},
             lastSaved: document.uploadedAt
         });
-        
+
     } catch (error) {
         console.error('Ошибка загрузки планов:', error);
+        res.status(500).json({ error: 'Ошибка при загрузке планов' });
+    }
+});
+
+/**
+ * GET /api/plans/all
+ * Объединённые данные всех регионов (только для admin2 / plans-admin)
+ */
+// /api/plans/all — алиас для admin2.html, читает тот же общий документ
+app.get('/api/plans/all', authenticateToken, (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+
+    try {
+        const db = readDB();
+        const usersData = readUsers();
+
+        const adminUser = usersData.users.find(u => u.role === 'admin' && u.formType === 'plans');
+        if (!adminUser) return res.json({ success: true, found: false, plans: null, notes: {} });
+
+        const document = db.documents.find(
+            doc => doc.userId === adminUser.id && doc.type === 'plans'
+        );
+
+        if (!document) {
+            return res.json({ success: true, found: false, plans: null, notes: {} });
+        }
+
+        res.json({
+            success: true, found: true,
+            plans: document.plans,
+            notes: document.notes || {},
+            lastSaved: document.uploadedAt
+        });
+
+    } catch (error) {
+        console.error('Ошибка загрузки всех планов:', error);
         res.status(500).json({ error: 'Ошибка при загрузке планов' });
     }
 });

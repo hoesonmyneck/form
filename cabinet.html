@@ -328,6 +328,12 @@
                     return false;
                 }
 
+                // Если plans-пользователь случайно зашёл в кабинет index1
+                if (data.user.formType === 'plans' || data.user.username === 'admin2') {
+                    window.location.href = '/admin2';
+                    return false;
+                }
+
                 return true;
             } catch (error) {
                 console.error('Ошибка проверки доступа:', error);

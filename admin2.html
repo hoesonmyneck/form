@@ -121,7 +121,7 @@
             const token = localStorage.getItem('accessToken');
             
             try {
-                const response = await fetch('/api/plans/load', {
+                const response = await fetch('/api/plans/all', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 

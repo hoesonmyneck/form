@@ -1,3 +1,7 @@
+// Индекс региона текущего пользователя (null = admin, видит всё)
+let userRegionIndex = null;
+let userIsAdmin = false;
+
 // Список регионов
 const REGIONS = [
     'г. Астана',
@@ -54,6 +58,17 @@ function checkAuth() {
             if (data.user.formType !== 'plans' && data.user.username !== 'admin2') {
                 alert('У вас нет доступа к этим формам');
                 window.location.href = '/index.html';
+                return;
+            }
+
+            // Сохраняем флаги роли и regionIndex
+            if (data.user.role === 'admin') {
+                userIsAdmin = true;
+            }
+
+            if (data.user.regionIndex !== null && data.user.regionIndex !== undefined) {
+                userRegionIndex = data.user.regionIndex;
+                applyRegionalFilter();
             }
         } else {
             throw new Error('User data not found');
@@ -105,6 +120,21 @@ function initializeTables() {
         </tr>`;
         
         tbody.innerHTML = html;
+    }
+}
+
+// Фильтр строк для регионального пользователя — показывает только его строку
+function applyRegionalFilter() {
+    if (userRegionIndex === null) return;
+
+    for (let i = 1; i <= 8; i++) {
+        const tbody = document.getElementById(`plan${i}-tbody`);
+        if (!tbody) continue;
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((row, idx) => {
+            // Показываем только строку своего региона (скрываем остальные и «Всего»)
+            row.style.display = (idx === userRegionIndex) ? '' : 'none';
+        });
     }
 }
 

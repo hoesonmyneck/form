@@ -39,6 +39,29 @@ pool.connect((err, client, release) => {
 
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 
+// =====================================================
+// РЕГИОНАЛЬНЫЕ АККАУНТЫ ДЛЯ ПЛАНОВ
+// =====================================================
+const PLAN_REGIONS = [
+    'г. Астана', 'г. Алматы', 'г. Шымкент',
+    'Акмолинская область', 'Актюбинская область', 'Алматинская область',
+    'Атырауская область', 'Восточно-Казахстанская область', 'Жамбылская область',
+    'Западно-Казахстанская область', 'Карагандинская область', 'Костанайская область',
+    'Кызылординская область', 'Мангистауская область', 'Павлодарская область',
+    'Северо-Казахстанская область', 'Туркестанская область', 'Область Абай',
+    'Область Улытау', 'Область Жетысу'
+];
+
+const REGION_USERS = {
+    'astana': 0, 'almaty': 1, 'shymkent': 2,
+    'akmola': 3, 'aktobe': 4, 'almatyreg': 5,
+    'atyrau': 6, 'vko': 7, 'zhambyl': 8,
+    'zko': 9, 'karaganda': 10, 'kostanay': 11,
+    'kyzylorda': 12, 'mangistau': 13, 'pavlodar': 14,
+    'sko': 15, 'turkestan': 16, 'abay': 17,
+    'ulytau': 18, 'zhetisu': 19
+};
+
 if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -535,9 +558,12 @@ app.delete('/api/documents/:id', authenticateToken, requireAdmin, async (req, re
  * GET /api/user/profile
  */
 app.get('/api/user/profile', authenticateToken, (req, res) => {
+    const regionIndex = REGION_USERS.hasOwnProperty(req.user.username)
+        ? REGION_USERS[req.user.username]
+        : null;
     res.json({
         success: true,
-        user: req.user
+        user: { ...req.user, regionIndex }
     });
 });
 
@@ -652,43 +678,86 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
 app.post('/api/plans/save', authenticateToken, async (req, res) => {
     try {
         const { plans, notes } = req.body;
-        
-        if (!plans) {
-            return res.status(400).json({ error: 'Отсутствуют данные планов' });
-        }
-        
-        const existingResult = await pool.query(
-            'SELECT id FROM documents WHERE user_id = $1 AND type = $2',
-            [req.user.id, 'plans']
+        if (!plans) return res.status(400).json({ error: 'Отсутствуют данные планов' });
+
+        const regionIndex = REGION_USERS[req.user.username];
+
+        // Находим администраторский (общий) документ планов
+        const sharedDocResult = await pool.query(
+            `SELECT d.id, d.plans, d.notes, d.user_id FROM documents d
+               JOIN users u ON d.user_id = u.id
+              WHERE d.type = 'plans' AND u.role = 'admin' AND u.form_type = 'plans'
+              LIMIT 1`
         );
-        
-        if (existingResult.rows.length > 0) {
+
+        let sharedPlans = {};
+        let sharedNotes = {};
+        let sharedDocId = null;
+        let sharedUserId = null;
+
+        // Получаем ID admin2
+        const adminUserResult = await pool.query(
+            `SELECT id, username, full_name, email, organization FROM users
+              WHERE role = 'admin' AND form_type = 'plans' LIMIT 1`
+        );
+        if (adminUserResult.rows.length === 0) {
+            return res.status(500).json({ error: 'Не найден администратор планов' });
+        }
+        const adminUser = adminUserResult.rows[0];
+        sharedUserId = adminUser.id;
+
+        if (sharedDocResult.rows.length > 0) {
+            sharedDocId = sharedDocResult.rows[0].id;
+            sharedPlans = sharedDocResult.rows[0].plans || {};
+            sharedNotes = sharedDocResult.rows[0].notes || {};
+        }
+
+        // Инициализируем пустую структуру если нужно
+        for (let i = 1; i <= 8; i++) {
+            const planId = `plan${i}`;
+            if (!sharedPlans[planId]) {
+                sharedPlans[planId] = PLAN_REGIONS.map((r, idx) => [idx + 1, r, '', '', '']);
+                sharedPlans[planId].push(['-', 'Всего', '', '', '']);
+            }
+        }
+
+        if (regionIndex !== undefined) {
+            // Региональный пользователь: обновляем только свою строку
+            for (let i = 1; i <= 8; i++) {
+                const planId = `plan${i}`;
+                if (plans[planId] && plans[planId][regionIndex]) {
+                    sharedPlans[planId][regionIndex] = plans[planId][regionIndex];
+                }
+            }
+            Object.assign(sharedNotes, notes || {});
+            console.log(`📝 Обновлена строка [${regionIndex}] от ${req.user.username}`);
+        } else {
+            // Администратор: перезаписывает всю таблицу
+            for (let i = 1; i <= 8; i++) {
+                const planId = `plan${i}`;
+                if (plans[planId]) sharedPlans[planId] = plans[planId];
+            }
+            Object.assign(sharedNotes, notes || {});
+            console.log(`📝 Обновлены все планы от admin (${req.user.username})`);
+        }
+
+        if (sharedDocId) {
             await pool.query(
-                `UPDATE documents SET 
-                    plans = $1, 
-                    notes = $2, 
-                    organization = $3, 
-                    submitted_at = NOW(), 
-                    uploaded_at = NOW()
-                WHERE id = $4`,
-                [JSON.stringify(plans), JSON.stringify(notes || {}), req.user.organization, existingResult.rows[0].id]
+                `UPDATE documents SET plans = $1, notes = $2, submitted_at = NOW(), uploaded_at = NOW() WHERE id = $3`,
+                [JSON.stringify(sharedPlans), JSON.stringify(sharedNotes), sharedDocId]
             );
-            console.log(`📝 Обновлены планы (${req.user.username})`);
         } else {
             const docId = generateId();
             await pool.query(
                 `INSERT INTO documents (id, user_id, type, plans, notes, organization, submitted_at, uploaded_at, username, user_full_name, user_email, user_organization)
                  VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), $7, $8, $9, $10)`,
-                [docId, req.user.id, 'plans', JSON.stringify(plans), JSON.stringify(notes || {}), req.user.organization, req.user.username, req.user.fullName, req.user.email, req.user.organization]
+                [docId, sharedUserId, 'plans', JSON.stringify(sharedPlans), JSON.stringify(sharedNotes),
+                 adminUser.organization, adminUser.username, adminUser.full_name, adminUser.email, adminUser.organization]
             );
-            console.log(`✅ Сохранены планы (${req.user.username})`);
         }
-        
-        res.json({
-            success: true,
-            message: 'Планы успешно сохранены'
-        });
-        
+
+        res.json({ success: true, message: 'Планы успешно сохранены' });
+
     } catch (error) {
         console.error('Ошибка сохранения планов:', error);
         res.status(500).json({ error: 'Ошибка при сохранении планов' });
@@ -700,20 +769,18 @@ app.post('/api/plans/save', authenticateToken, async (req, res) => {
  */
 app.get('/api/plans/load', authenticateToken, async (req, res) => {
     try {
+        // Все читают из единого общего документа admin2
         const result = await pool.query(
-            'SELECT plans, notes, uploaded_at FROM documents WHERE user_id = $1 AND type = $2',
-            [req.user.id, 'plans']
+            `SELECT d.plans, d.notes, d.uploaded_at FROM documents d
+               JOIN users u ON d.user_id = u.id
+              WHERE d.type = 'plans' AND u.role = 'admin' AND u.form_type = 'plans'
+              LIMIT 1`
         );
-        
+
         if (result.rows.length === 0) {
-            return res.json({
-                success: true,
-                found: false,
-                plans: null,
-                notes: {}
-            });
+            return res.json({ success: true, found: false, plans: null, notes: {} });
         }
-        
+
         res.json({
             success: true,
             found: true,
@@ -721,9 +788,42 @@ app.get('/api/plans/load', authenticateToken, async (req, res) => {
             notes: result.rows[0].notes || {},
             lastSaved: result.rows[0].uploaded_at
         });
-        
+
     } catch (error) {
         console.error('Ошибка загрузки планов:', error);
+        res.status(500).json({ error: 'Ошибка при загрузке планов' });
+    }
+});
+
+/**
+ * GET /api/plans/all
+ * Объединённые данные всех регионов (только для admin2 / plans-admin)
+ */
+// /api/plans/all — алиас для admin2.html, читает тот же общий документ
+app.get('/api/plans/all', authenticateToken, async (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    req.url = '/api/plans/load';
+    // Переиспользуем load-логику напрямую
+    try {
+        const result = await pool.query(
+            `SELECT d.plans, d.notes, d.uploaded_at FROM documents d
+               JOIN users u ON d.user_id = u.id
+              WHERE d.type = 'plans' AND u.role = 'admin' AND u.form_type = 'plans'
+              LIMIT 1`
+        );
+        if (result.rows.length === 0) {
+            return res.json({ success: true, found: false, plans: null, notes: {} });
+        }
+        res.json({
+            success: true, found: true,
+            plans: result.rows[0].plans,
+            notes: result.rows[0].notes || {},
+            lastSaved: result.rows[0].uploaded_at
+        });
+    } catch (error) {
+        console.error('Ошибка загрузки всех планов:', error);
         res.status(500).json({ error: 'Ошибка при загрузке планов' });
     }
 });

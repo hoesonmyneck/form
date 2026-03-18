@@ -33,7 +33,6 @@ function checkAuth() {
         if (data.success && data.user) {
             // Проверяем что пользователь admin2 НЕ может зайти в старые формы
             if (data.user.username === 'admin2' || data.user.formType === 'plans') {
-                alert('У вас нет доступа к этим формам. Переход к вашим формам...');
                 window.location.href = '/index2';
                 return;
             }

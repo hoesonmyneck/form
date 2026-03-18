@@ -22,6 +22,226 @@
       "createdAt": "2026-02-27T12:00:00.000Z"
     },
     {
+      "id": "reg001",
+      "username": "astana",
+      "email": "astana",
+      "password": "astana",
+      "fullName": "ДКРиКСЗН по г. Астана",
+      "organization": "Территориальный департамент КРиКСЗН по г. Астана",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg002",
+      "username": "almaty",
+      "email": "almaty",
+      "password": "almaty",
+      "fullName": "ДКРиКСЗН по г. Алматы",
+      "organization": "Территориальный департамент КРиКСЗН по г. Алматы",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg003",
+      "username": "shymkent",
+      "email": "shymkent",
+      "password": "shymkent",
+      "fullName": "ДКРиКСЗН по г. Шымкент",
+      "organization": "Территориальный департамент КРиКСЗН по г. Шымкент",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg004",
+      "username": "akmola",
+      "email": "akmola",
+      "password": "akmola",
+      "fullName": "ДКРиКСЗН по Акмолинской области",
+      "organization": "Территориальный департамент КРиКСЗН по Акмолинской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg005",
+      "username": "aktobe",
+      "email": "aktobe",
+      "password": "aktobe",
+      "fullName": "ДКРиКСЗН по Актюбинской области",
+      "organization": "Территориальный департамент КРиКСЗН по Актюбинской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg006",
+      "username": "almatyreg",
+      "email": "almatyreg",
+      "password": "almatyreg",
+      "fullName": "ДКРиКСЗН по Алматинской области",
+      "organization": "Территориальный департамент КРиКСЗН по Алматинской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg007",
+      "username": "atyrau",
+      "email": "atyrau",
+      "password": "atyrau",
+      "fullName": "ДКРиКСЗН по Атырауской области",
+      "organization": "Территориальный департамент КРиКСЗН по Атырауской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg008",
+      "username": "vko",
+      "email": "vko",
+      "password": "vko",
+      "fullName": "ДКРиКСЗН по ВКО",
+      "organization": "Территориальный департамент КРиКСЗН по Восточно-Казахстанской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg009",
+      "username": "zhambyl",
+      "email": "zhambyl",
+      "password": "zhambyl",
+      "fullName": "ДКРиКСЗН по Жамбылской области",
+      "organization": "Территориальный департамент КРиКСЗН по Жамбылской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg010",
+      "username": "zko",
+      "email": "zko",
+      "password": "zko",
+      "fullName": "ДКРиКСЗН по ЗКО",
+      "organization": "Территориальный департамент КРиКСЗН по Западно-Казахстанской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg011",
+      "username": "karaganda",
+      "email": "karaganda",
+      "password": "karaganda",
+      "fullName": "ДКРиКСЗН по Карагандинской области",
+      "organization": "Территориальный департамент КРиКСЗН по Карагандинской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg012",
+      "username": "kostanay",
+      "email": "kostanay",
+      "password": "kostanay",
+      "fullName": "ДКРиКСЗН по Костанайской области",
+      "organization": "Территориальный департамент КРиКСЗН по Костанайской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg013",
+      "username": "kyzylorda",
+      "email": "kyzylorda",
+      "password": "kyzylorda",
+      "fullName": "ДКРиКСЗН по Кызылординской области",
+      "organization": "Территориальный департамент КРиКСЗН по Кызылординской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg014",
+      "username": "mangistau",
+      "email": "mangistau",
+      "password": "mangistau",
+      "fullName": "ДКРиКСЗН по Мангистауской области",
+      "organization": "Территориальный департамент КРиКСЗН по Мангистауской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg015",
+      "username": "pavlodar",
+      "email": "pavlodar",
+      "password": "pavlodar",
+      "fullName": "ДКРиКСЗН по Павлодарской области",
+      "organization": "Территориальный департамент КРиКСЗН по Павлодарской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg016",
+      "username": "sko",
+      "email": "sko",
+      "password": "sko",
+      "fullName": "ДКРиКСЗН по СКО",
+      "organization": "Территориальный департамент КРиКСЗН по Северо-Казахстанской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg017",
+      "username": "turkestan",
+      "email": "turkestan",
+      "password": "turkestan",
+      "fullName": "ДКРиКСЗН по Туркестанской области",
+      "organization": "Территориальный департамент КРиКСЗН по Туркестанской области",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg018",
+      "username": "abay",
+      "email": "abay",
+      "password": "abay",
+      "fullName": "ДКРиКСЗН по области Абай",
+      "organization": "Территориальный департамент КРиКСЗН по области Абай",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg019",
+      "username": "ulytau",
+      "email": "ulytau",
+      "password": "ulytau",
+      "fullName": "ДКРиКСЗН по области Улытау",
+      "organization": "Территориальный департамент КРиКСЗН по области Улытау",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "reg020",
+      "username": "zhetisu",
+      "email": "zhetisu",
+      "password": "zhetisu",
+      "fullName": "ДКРиКСЗН по области Жетысу",
+      "organization": "Территориальный департамент КРиКСЗН по области Жетысу",
+      "role": "user",
+      "formType": "plans",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    },
+    {
       "id": "mluv9l0hchvcmshy6f",
       "username": "abai_soc",
       "email": "abai_soc",
@@ -442,6 +662,51 @@
       "userId": "admin001",
       "token": "44wm0a1864mmmsrytg6",
       "expiresAt": "2026-03-23T06:00:48.534Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "ndzjh2knyimmvpou33",
+      "expiresAt": "2026-03-25T07:20:22.095Z"
+    },
+    {
+      "userId": "reg001",
+      "token": "45t9bn8ne2mmvpq7jl",
+      "expiresAt": "2026-03-25T07:21:26.193Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "m5uhhvb0ktcmmvpqmrb",
+      "expiresAt": "2026-03-25T07:21:45.911Z"
+    },
+    {
+      "userId": "reg001",
+      "token": "w9ni4w684yimmvpyvzo",
+      "expiresAt": "2026-03-25T07:28:11.124Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "r5ndfi6o80nmmvpzd9a",
+      "expiresAt": "2026-03-25T07:28:33.502Z"
+    },
+    {
+      "userId": "reg001",
+      "token": "m77vajagv2ammvq03kt",
+      "expiresAt": "2026-03-25T07:29:07.613Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "fusaka97mh9mmvq0bpz",
+      "expiresAt": "2026-03-25T07:29:18.167Z"
+    },
+    {
+      "userId": "reg001",
+      "token": "jcb28ensfkommvq9ca1",
+      "expiresAt": "2026-03-25T07:36:18.793Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "c3mtgimaxpqmmvq9ohv",
+      "expiresAt": "2026-03-25T07:36:34.627Z"
     }
   ]
 }
