@@ -103,8 +103,8 @@
                 
                 // Разрешаем admin и viewer с formType = 'plans'
                 const isPlansAdmin = data.user.role === 'admin' && data.user.formType === 'plans';
-                const isViewer = data.user.role === 'viewer' && data.user.formType === 'plans';
-                if (!isPlansAdmin && !isViewer) {
+                const isPlanner = data.user.role === 'planner' && data.user.formType === 'plans';
+                if (!isPlansAdmin && !isPlanner) {
                     alert('Доступ запрещен');
                     window.location.href = '/index.html';
                     return false;

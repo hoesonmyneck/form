@@ -1,7 +1,7 @@
-// Индекс региона текущего пользователя (null = admin/viewer, видит всё)
+// Индекс региона текущего пользователя (null = admin/planner, видит всё)
 let userRegionIndex = null;
-let userIsAdmin = false;
-let userIsViewer = false;
+let userIsAdmin   = false;
+let userIsPlanner = false; // krik: редактирует только плановый показатель
 
 // Список регионов
 const REGIONS = [
@@ -66,16 +66,18 @@ function checkAuth() {
             if (data.user.role === 'admin') {
                 userIsAdmin = true;
                 document.getElementById('adminPanelBtn').style.display = 'block';
-            } else if (data.user.role === 'viewer') {
-                userIsViewer = true;
+            } else if (data.user.role === 'planner') {
+                userIsPlanner = true;
                 document.getElementById('adminPanelBtn').style.display = 'block';
-                applyViewerMode();
             }
 
             if (data.user.regionIndex !== null && data.user.regionIndex !== undefined) {
                 userRegionIndex = data.user.regionIndex;
                 applyRegionalFilter();
             }
+
+            // Применяем ограничения колонок сразу (таблицы уже могут быть созданы)
+            applyColumnRestrictions();
         } else {
             throw new Error('User data not found');
         }
@@ -144,25 +146,39 @@ function applyRegionalFilter() {
     }
 }
 
-// Режим просмотра (viewer): все поля readonly, кнопка сохранения скрыта
-function applyViewerMode() {
-    if (!userIsViewer) return;
+// Ограничения по колонкам в зависимости от роли:
+// admin    → редактирует всё
+// planner  → редактирует только col 0 (плановый показатель)
+// regional → редактирует только col 1 (фактический показатель) своей строки
+function applyColumnRestrictions() {
+    if (userIsAdmin) return; // Нет ограничений
 
-    // Блокируем все поля ввода
-    document.querySelectorAll('.report-table input').forEach(input => {
-        input.disabled = true;
-        input.style.background = '#f3f4f6';
-        input.style.cursor = 'not-allowed';
-    });
+    for (let planNum = 1; planNum <= 8; planNum++) {
+        const tbody = document.getElementById(`plan${planNum}-tbody`);
+        if (!tbody) continue;
 
-    // Скрываем кнопки примечаний
-    document.querySelectorAll('.note-btn').forEach(btn => {
-        btn.style.display = 'none';
-    });
+        tbody.querySelectorAll('tr').forEach((row, rowIdx) => {
+            const inputs = row.querySelectorAll('input');
+            // inputs[0] = плановый, inputs[1] = фактический, inputs[2] = коэффициент (всегда readonly)
 
-    // Скрываем кнопку сохранения
-    const saveBtn = document.querySelector('.btn-save');
-    if (saveBtn) saveBtn.style.display = 'none';
+            if (userIsPlanner) {
+                // krik: только плановый показатель (col 0) редактируем
+                // Блокируем col 1 (фактический)
+                if (inputs[1]) lockInput(inputs[1]);
+
+            } else if (userRegionIndex !== null) {
+                // Региональный пользователь: только фактический показатель (col 1)
+                // Блокируем col 0 (плановый)
+                if (inputs[0]) lockInput(inputs[0]);
+            }
+        });
+    }
+}
+
+function lockInput(input) {
+    input.disabled = true;
+    input.style.background = '#f3f4f6';
+    input.style.cursor = 'not-allowed';
 }
 
 // Расчет коэффициента исполнения
@@ -361,8 +377,8 @@ async function loadPlansFromServer() {
     } catch (error) {
         console.error('Ошибка загрузки:', error);
     } finally {
-        // После загрузки данных применяем viewer-режим (инпуты могли пересоздаться)
-        if (userIsViewer) applyViewerMode();
+        // После загрузки данных применяем ограничения (инпуты пересозданы)
+        applyColumnRestrictions();
     }
 }
 

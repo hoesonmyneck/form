@@ -16,10 +16,10 @@ async function main() {
     try {
         await pool.query(
             `INSERT INTO users (id, username, email, password, full_name, organization, role, form_type, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, 'viewer', 'plans', NOW())
+             VALUES ($1, $2, $3, $4, $5, $6, 'planner', 'plans', NOW())
              ON CONFLICT (username) DO UPDATE SET
                  password = EXCLUDED.password,
-                 role = 'viewer',
+                 role = 'planner',
                  form_type = 'plans',
                  full_name = EXCLUDED.full_name`,
             [
@@ -34,7 +34,7 @@ async function main() {
         console.log('✅ Аккаунт krik создан (или обновлён)');
         console.log('   логин: krik');
         console.log('   пароль: qwerty12Q');
-        console.log('   роль: viewer (только просмотр)');
+        console.log('   роль: planner (только плановый показатель)');
     } catch (err) {
         console.error('❌ Ошибка:', err.message);
     }

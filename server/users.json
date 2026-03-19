@@ -26,9 +26,9 @@
       "username": "krik",
       "email": "krik",
       "password": "qwerty12Q",
-      "fullName": "КРиКСЗН — просмотр планов",
+      "fullName": "КРиКСЗН — плановые показатели",
       "organization": "Комитет регулирования и контроля в сфере социальной защиты населения",
-      "role": "viewer",
+      "role": "planner",
       "formType": "plans",
       "createdAt": "2026-03-01T00:00:00.000Z"
     },
@@ -728,6 +728,26 @@
       "userId": "admin002",
       "token": "o7flwyd2bwmmw16c1u",
       "expiresAt": "2026-03-25T12:41:54.306Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "3s2npnmjp6tmmx9tmez",
+      "expiresAt": "2026-03-26T09:31:43.931Z"
+    },
+    {
+      "userId": "reg001",
+      "token": "tpi3ygct3zlmmx9u3d7",
+      "expiresAt": "2026-03-26T09:32:05.899Z"
+    },
+    {
+      "userId": "krik001",
+      "token": "ni8maj9wjhmmx9uzxp",
+      "expiresAt": "2026-03-26T09:32:48.109Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "l4eawl082ukmmx9vbni",
+      "expiresAt": "2026-03-26T09:33:03.294Z"
     }
   ]
 }
