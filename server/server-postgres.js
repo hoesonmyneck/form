@@ -455,8 +455,10 @@ app.get('/api/files/:filename', authenticateToken, (req, res) => {
  */
 app.get('/api/documents', authenticateToken, async (req, res) => {
     try {
+        // Кабинет показывает все документы (форм-данные) всем авторизованным
         const result = await pool.query(
-            'SELECT * FROM documents ORDER BY uploaded_at DESC'
+            'SELECT * FROM documents WHERE type = $1 ORDER BY uploaded_at DESC',
+            ['json']
         );
         
         res.json({

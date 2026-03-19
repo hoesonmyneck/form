@@ -574,12 +574,10 @@ app.post('/api/documents/upload', authenticateToken, upload.single('document'), 
 app.get('/api/documents', authenticateToken, (req, res) => {
     try {
         const db = readDB();
-        
-        let documents = db.documents;
-        
-        // ВСЕ пользователи (и админы, и обычные) видят все документы
-        // Фильтрация убрана
-        
+
+        // Кабинет показывает все документы (форм-данные) всем авторизованным
+        const documents = db.documents.filter(d => d.type === 'json');
+
         res.json({
             success: true,
             count: documents.length,

@@ -110,24 +110,27 @@ function goToCabinet() {
 // Функция выхода
 function logout() {
     const refreshToken = localStorage.getItem('refreshToken');
+
+    // Очищаем все данные сессии из localStorage перед выходом
+    function clearSessionData() {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        localStorage.removeItem('formsRetainedState');
+    }
     
     fetch('/api/auth/logout', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken })
     })
     .then(() => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        clearSessionData();
         window.location.href = '/login.html';
     })
     .catch(error => {
         console.error('Ошибка при выходе:', error);
-        // Всё равно выходим локально
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        clearSessionData();
         window.location.href = '/login.html';
     });
 }

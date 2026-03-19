@@ -194,6 +194,9 @@
                     throw new Error(data.error || 'Ошибка входа');
                 }
                 
+                // Очищаем данные предыдущей сессии перед сохранением новой
+                localStorage.removeItem('formsRetainedState');
+
                 // Сохраняем токены
                 localStorage.setItem('accessToken', data.accessToken);
                 localStorage.setItem('refreshToken', data.refreshToken);

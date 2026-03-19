@@ -447,6 +447,7 @@ function goToAdmin2() {
 function logout() {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
     window.location.href = '/login.html';
 }
 
