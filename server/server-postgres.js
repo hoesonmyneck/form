@@ -1062,13 +1062,14 @@ async function takeAutoSnapshot(label) {
         if (!adminUser.rows.length) { console.log('Снимок: admin2 не найден'); return false; }
         const adminId = adminUser.rows[0].id;
         const doc = await pool.query(
-            `SELECT plans, notes FROM documents WHERE user_id=$1 AND type='plans' ORDER BY updated_at DESC LIMIT 1`,
+            `SELECT plans, notes FROM documents WHERE user_id=$1 AND type='plans' ORDER BY uploaded_at DESC LIMIT 1`,
             [adminId]
         );
         if (!doc.rows.length) { console.log('Снимок: нет данных планов'); return false; }
         const plans = doc.rows[0].plans || {};
         const notes = doc.rows[0].notes || {};
-        const snapshotDate = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const snapshotDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
         await pool.query(
             `INSERT INTO plan_history (id, snapshot_date, plans_data, notes_data, created_at)
              VALUES ($1,$2,$3,$4,NOW())
@@ -1119,11 +1120,11 @@ app.get('/api/plans/history', authenticateToken, async (req, res) => {
         const result = await pool.query(
             `SELECT id, snapshot_date, created_at FROM plan_history ORDER BY snapshot_date DESC`
         );
-        res.json({ success: true, snapshots: result.rows.map(r => ({
-            id: r.id,
-            date: r.snapshot_date.toISOString().split('T')[0],
-            createdAt: r.created_at
-        }))});
+        res.json({ success: true, snapshots: result.rows.map(r => {
+            const d = r.snapshot_date;
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            return { id: r.id, date: dateStr, createdAt: r.created_at };
+        })});
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

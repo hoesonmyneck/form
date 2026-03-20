@@ -275,7 +275,8 @@
                     data.snapshots.forEach(s => {
                         const opt = document.createElement('option');
                         opt.value = s.date;
-                        const d = new Date(s.date);
+                        const [y, m, dd] = s.date.split('-');
+                        const d = new Date(+y, +m - 1, +dd);
                         const label = d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
                         opt.textContent = label;
                         sel.appendChild(opt);
@@ -300,7 +301,8 @@
                 if (data.success && data.found) {
                     historyPlans = data.plans;
                     historyNotes = data.notes || {};
-                    const d = new Date(date);
+                    const [y, m, dd] = date.split('-');
+                    const d = new Date(+y, +m - 1, +dd);
                     document.getElementById('historyMeta').textContent =
                         `Снимок за ${d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}`;
                     document.getElementById('historyMeta').style.display = 'block';
@@ -308,6 +310,9 @@
                     currentHistoryTab = 1;
                     document.querySelectorAll('#historyTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
                     renderHistoryTable(1);
+                } else {
+                    console.log('Снимок не найден:', data);
+                    document.getElementById('historyContent').style.display = 'none';
                 }
             } catch (e) { console.error('Ошибка загрузки снимка:', e); }
         }

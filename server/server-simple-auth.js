@@ -1305,7 +1305,8 @@ function takeSnapshotDev(label) {
         const notes = doc.notes || {};
         const planKeys = Object.keys(plans);
         console.log(`Снимок: найдено планов=${planKeys.length}, ключи: ${planKeys.join(', ')}`);
-        const snapshotDate = new Date().toISOString().split('T')[0];
+        const now2 = new Date();
+        const snapshotDate = `${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,'0')}-${String(now2.getDate()).padStart(2,'0')}`;
         const history = readHistory();
         const idx = history.snapshots.findIndex(s => s.date === snapshotDate);
         const snap = { id: generateId(), date: snapshotDate, plans, notes, createdAt: new Date().toISOString() };
