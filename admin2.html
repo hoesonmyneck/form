@@ -110,9 +110,9 @@
                     <button class="tab-btn" onclick="switchHistoryTab(3)">План № 3</button>
                     <button class="tab-btn" onclick="switchHistoryTab(4)">План № 4</button>
                     <button class="tab-btn" onclick="switchHistoryTab(5)">План № 5</button>
-                    <button class="tab-btn" onclick="switchHistoryTab(6)">План № 6</button>
-                    <button class="tab-btn" onclick="switchHistoryTab(7)">План № 7</button>
-                    <button class="tab-btn" onclick="switchHistoryTab(8)">План № 8</button>
+                    <!-- ПЛАН 6 ВРЕМЕННО СКРЫТ: <button class="tab-btn" onclick="switchHistoryTab(6)">План № 6</button> -->
+                    <button class="tab-btn" onclick="switchHistoryTab(7)">План № 6</button>
+                    <button class="tab-btn" onclick="switchHistoryTab(8)">План № 7</button>
                 </nav>
                 <div id="historyTable" style="background:white; padding:2rem; border-radius:0 0 8px 8px;"></div>
             </div>
@@ -152,9 +152,9 @@
             <button class="tab-btn" data-tab="plan3" onclick="switchTab(3)">План № 3</button>
             <button class="tab-btn" data-tab="plan4" onclick="switchTab(4)">План № 4</button>
             <button class="tab-btn" data-tab="plan5" onclick="switchTab(5)">План № 5</button>
-            <button class="tab-btn" data-tab="plan6" onclick="switchTab(6)">План № 6</button>
-            <button class="tab-btn" data-tab="plan7" onclick="switchTab(7)">План № 7</button>
-            <button class="tab-btn" data-tab="plan8" onclick="switchTab(8)">План № 8</button>
+            <!-- ПЛАН 6 ВРЕМЕННО СКРЫТ: <button class="tab-btn" data-tab="plan6" onclick="switchTab(6)">План № 6</button> -->
+            <button class="tab-btn" data-tab="plan7" onclick="switchTab(7)">План № 6</button>
+            <button class="tab-btn" data-tab="plan8" onclick="switchTab(8)">План № 7</button>
         </nav>
 
         <div id="plans-container"></div>
@@ -178,10 +178,13 @@
             3: 'Своевременная организация проверочных мероприятий',
             4: 'Достижение целевого показателя по заочному проактивному оказанию услуги (45%)',
             5: 'Рассмотрение не менее 50% дел первичного освидетельствования ОМК МСЭ',
-            6: 'Направление поступивших формуляров на подтверждение',
+            // 6: 'Направление поступивших формуляров на подтверждение', // ПЛАН 6 СКРЫТ
             7: 'Проведение проверки пенсионных выплат по возрасту',
             8: 'Обеспечение наполнения интернет-ресурса департамента'
         };
+
+        // Маппинг: внутренний номер плана → отображаемый (план 6 скрыт: 7→6, 8→7)
+        const PLAN_DISPLAY_NUMS = { 1:1, 2:2, 3:3, 4:4, 5:5, 7:6, 8:7 };
 
         let currentTab = 1;
         let allPlans = null;
@@ -319,7 +322,11 @@
 
         function switchHistoryTab(n) {
             currentHistoryTab = n;
-            document.querySelectorAll('#historyTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i + 1 === n));
+            // Активируем по onclick-значению, не по индексу
+            document.querySelectorAll('#historyTabs .tab-btn').forEach(b => {
+                const m = b.getAttribute('onclick').match(/switchHistoryTab\((\d+)\)/);
+                if (m) b.classList.toggle('active', parseInt(m[1]) === n);
+            });
             renderHistoryTable(n);
         }
 
@@ -329,9 +336,10 @@
                 el.innerHTML = '<div style="text-align:center; padding:2rem; color:#9ca3af;">Нет данных</div>';
                 return;
             }
+            const displayNum = PLAN_DISPLAY_NUMS[planNumber] || planNumber;
             const data = historyPlans[`plan${planNumber}`];
-            let html = `<h2 style="margin-bottom:0.5rem;">План № ${planNumber}</h2>`;
-            html += `<p style="color:#64748b; margin-bottom:1.5rem; font-size:0.95rem;">${PLAN_TITLES[planNumber]}</p>`;
+            let html = `<h2 style="margin-bottom:0.5rem;">План № ${displayNum}</h2>`;
+            html += `<p style="color:#64748b; margin-bottom:1.5rem; font-size:0.95rem;">${PLAN_TITLES[planNumber] || ''}</p>`;
             html += '<table class="report-table"><thead><tr>';
             html += '<th style="width:50px;">№</th><th>Территориальный департамент</th>';
             html += '<th>Плановый показатель</th><th>Фактический показатель</th><th>Коэф. исполнения</th>';
@@ -610,18 +618,20 @@
             const tbody = document.getElementById('region-tbody');
             tbody.innerHTML = '';
             
-            // Собираем данные по всем 8 планам для выбранного региона
+            // Собираем данные по всем планам для выбранного региона (план 6 скрыт)
             for (let planNum = 1; planNum <= 8; planNum++) {
+                if (planNum === 6) continue; // ПЛАН 6 СКРЫТ
                 const planId = `plan${planNum}`;
                 const planData = allPlans[planId];
+                const displayNum = PLAN_DISPLAY_NUMS[planNum] || planNum;
                 
                 if (planData && planData[regionIndex]) {
                     const row = planData[regionIndex];
                     const tr = document.createElement('tr');
                     
                     tr.innerHTML = `
-                        <td style="text-align: center; font-weight: 600;">${planNum}</td>
-                        <td><strong>${PLAN_TITLES[planNum] || `План № ${planNum}`}</strong></td>
+                        <td style="text-align: center; font-weight: 600;">${displayNum}</td>
+                        <td><strong>${PLAN_TITLES[planNum] || `План № ${displayNum}`}</strong></td>
                         <td style="text-align: center;">${row[2] || '—'}</td>
                         <td style="text-align: center;">${row[3] || '—'}</td>
                         <td style="text-align: center;">${row[4] || '—'}</td>
@@ -643,9 +653,10 @@
 
             const data = allPlans[`plan${planNumber}`];
             
+            const displayNum = PLAN_DISPLAY_NUMS[planNumber] || planNumber;
             let html = '<div style="background: white; padding: 2rem; border-radius: 8px;">';
-            html += `<h2 style="margin-bottom: 1rem;">План № ${planNumber}</h2>`;
-            html += `<p style="color: #64748b; margin-bottom: 2rem;">${PLAN_TITLES[planNumber]}</p>`;
+            html += `<h2 style="margin-bottom: 1rem;">План № ${displayNum}</h2>`;
+            html += `<p style="color: #64748b; margin-bottom: 2rem;">${PLAN_TITLES[planNumber] || ''}</p>`;
             html += '<table class="report-table"><thead><tr>';
             html += '<th style="width: 50px;">№</th>';
             html += '<th>Территориальный департамент</th>';
@@ -697,11 +708,11 @@
 
         function switchTab(planNumber) {
             currentTab = planNumber;
-            
-            document.querySelectorAll('.tab-btn').forEach((btn, index) => {
-                btn.classList.toggle('active', index + 1 === planNumber);
+            // Активируем по data-tab, а не по индексу (индексы нарушены из-за скрытого плана 6)
+            document.querySelectorAll('nav.nav-tabs:not(#historyTabs) .tab-btn').forEach(btn => {
+                const n = btn.dataset.tab ? parseInt(btn.dataset.tab.replace('plan', '')) : -1;
+                btn.classList.toggle('active', n === planNumber);
             });
-            
             renderPlan(planNumber);
         }
 

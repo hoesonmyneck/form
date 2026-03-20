@@ -282,6 +282,7 @@ function initTabs() {
 // Сбор данных таблицы
 function collectTableData(planId) {
     const tbody = document.getElementById(`${planId}-tbody`);
+    if (!tbody) return []; // план скрыт (например plan6)
     const rows = tbody.querySelectorAll('tr');
     const data = [];
     
@@ -310,6 +311,7 @@ function restoreTableData(planId, data) {
     if (!data || data.length === 0) return;
     
     const tbody = document.getElementById(`${planId}-tbody`);
+    if (!tbody) return; // план скрыт (например plan6)
     const rows = tbody.querySelectorAll('tr');
     
     data.forEach((rowData, index) => {
@@ -399,6 +401,9 @@ async function loadPlansFromServer() {
     }
 }
 
+// Маппинг внутреннего номера плана → отображаемый номер (план 6 скрыт: 7→6, 8→7)
+const PLAN_DISPLAY_NUMBER = { 7: 6, 8: 7 };
+
 // Скачивание текущего плана
 async function downloadCurrentPlan() {
     const token = localStorage.getItem('accessToken');
@@ -409,6 +414,9 @@ async function downloadCurrentPlan() {
         const planData = collectTableData(planId);
         const planNumber = planId.replace('plan', '');
         
+        const internalNum = parseInt(planNumber);
+        const displayNum = PLAN_DISPLAY_NUMBER[internalNum] || internalNum;
+
         const response = await fetch('/api/plans/download', {
             method: 'POST',
             headers: {
@@ -416,7 +424,8 @@ async function downloadCurrentPlan() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({ 
-                planNumber: parseInt(planNumber),
+                planNumber: internalNum,
+                displayNumber: displayNum,
                 planData: planData
             })
         });
@@ -433,7 +442,7 @@ async function downloadCurrentPlan() {
         
         // Получаем имя файла из заголовка
         const disposition = response.headers.get('Content-Disposition');
-        let filename = `План_${planNumber}.docx`;
+        let filename = `План_${displayNum}.docx`;
         if (disposition && disposition.includes('filename')) {
             const matches = /filename\*?=['"]?([^'";\n]+)['"]?/i.exec(disposition);
             if (matches && matches[1]) {
@@ -447,7 +456,7 @@ async function downloadCurrentPlan() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         
-        console.log(`✅ Документ План ${planNumber} успешно загружен`);
+        console.log(`✅ Документ План ${displayNum} (internal: ${internalNum}) успешно загружен`);
         
     } catch (error) {
         console.error('Ошибка:', error);
