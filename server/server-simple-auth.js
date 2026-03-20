@@ -720,6 +720,99 @@ app.get('/api/stats', authenticateToken, (req, res) => {
     }
 });
 
+// =====================================================
+// УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ИНДЕКСА 2 (admin2)
+// =====================================================
+
+const PLANS_ADMIN_CHECK = (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        res.status(403).json({ error: 'Доступ запрещён' });
+        return false;
+    }
+    return true;
+};
+
+app.get('/api/admin2/users', authenticateToken, (req, res) => {
+    if (!PLANS_ADMIN_CHECK(req, res)) return;
+    try {
+        const usersData = readUsers();
+        const plansUsers = usersData.users
+            .filter(u => u.formType === 'plans')
+            .map(u => ({
+                id: u.id,
+                username: u.username,
+                fullName: u.fullName,
+                organization: u.organization,
+                role: u.role,
+                regionIndex: REGION_USERS[u.username] ?? null
+            }));
+        res.json({ success: true, users: plansUsers });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin2/users', authenticateToken, (req, res) => {
+    if (!PLANS_ADMIN_CHECK(req, res)) return;
+    try {
+        const { username, password, fullName, role, regionIndex } = req.body;
+        if (!username || !password) return res.status(400).json({ error: 'Логин и пароль обязательны' });
+        const usersData = readUsers();
+        if (usersData.users.find(u => u.username === username)) {
+            return res.status(400).json({ error: 'Логин уже занят' });
+        }
+        const org = (regionIndex !== null && regionIndex !== undefined && regionIndex >= 0)
+            ? PLAN_REGIONS[regionIndex] : '';
+        usersData.users.push({
+            id: 'u_' + generateId(),
+            username, email: username + '@plans.kz',
+            password, // plain text для dev
+            fullName: fullName || username,
+            organization: org,
+            role: role || 'user',
+            formType: 'plans',
+            createdAt: new Date().toISOString()
+        });
+        writeUsers(usersData);
+        res.json({ success: true, message: 'Пользователь создан' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin2/users/:id', authenticateToken, (req, res) => {
+    if (!PLANS_ADMIN_CHECK(req, res)) return;
+    try {
+        const { username, password, fullName, role, regionIndex } = req.body;
+        const { id } = req.params;
+        const usersData = readUsers();
+        const idx = usersData.users.findIndex(u => u.id === id);
+        if (idx < 0) return res.status(404).json({ error: 'Пользователь не найден' });
+        const dup = usersData.users.find(u => u.username === username && u.id !== id);
+        if (dup) return res.status(400).json({ error: 'Логин уже занят' });
+        const org = (regionIndex !== null && regionIndex !== undefined && regionIndex >= 0)
+            ? PLAN_REGIONS[regionIndex] : '';
+        usersData.users[idx] = {
+            ...usersData.users[idx],
+            username,
+            fullName: fullName || username,
+            organization: org,
+            role: role || 'user',
+            ...(password && password.trim() ? { password } : {})
+        };
+        writeUsers(usersData);
+        res.json({ success: true, message: 'Пользователь обновлён' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin2/users/:id', authenticateToken, (req, res) => {
+    if (!PLANS_ADMIN_CHECK(req, res)) return;
+    try {
+        const { id } = req.params;
+        if (id === req.user.id) return res.status(400).json({ error: 'Нельзя удалить себя' });
+        const usersData = readUsers();
+        usersData.users = usersData.users.filter(u => !(u.id === id && u.formType === 'plans'));
+        writeUsers(usersData);
+        res.json({ success: true, message: 'Пользователь удалён' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 /**
  * GET /api/user/profile
  * Профиль пользователя

@@ -556,6 +556,93 @@ app.delete('/api/documents/:id', authenticateToken, requireAdmin, async (req, re
     }
 });
 
+// =====================================================
+// УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ИНДЕКСА 2 (admin2)
+// =====================================================
+
+const PLANS_ADMIN_CHECK = (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        res.status(403).json({ error: 'Доступ запрещён' });
+        return false;
+    }
+    return true;
+};
+
+app.get('/api/admin2/users', authenticateToken, async (req, res) => {
+    if (!PLANS_ADMIN_CHECK(req, res)) return;
+    try {
+        const result = await pool.query(
+            `SELECT id, username, full_name, organization, role FROM users
+              WHERE form_type = 'plans' ORDER BY created_at ASC`
+        );
+        res.json({ success: true, users: result.rows.map(u => ({
+            id: u.id,
+            username: u.username,
+            fullName: u.full_name,
+            organization: u.organization,
+            role: u.role,
+            regionIndex: REGION_USERS[u.username] ?? null
+        }))});
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin2/users', authenticateToken, async (req, res) => {
+    if (!PLANS_ADMIN_CHECK(req, res)) return;
+    try {
+        const { username, password, fullName, role, regionIndex } = req.body;
+        if (!username || !password) return res.status(400).json({ error: 'Логин и пароль обязательны' });
+        const hash = await bcrypt.hash(password, 10);
+        const id = 'u_' + generateId();
+        const org = (regionIndex !== null && regionIndex !== undefined && regionIndex >= 0)
+            ? PLAN_REGIONS[regionIndex] : '';
+        await pool.query(
+            `INSERT INTO users (id, username, email, password, full_name, organization, role, form_type, created_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,'plans',NOW())`,
+            [id, username, username + '@plans.kz', hash, fullName || username, org, role || 'user']
+        );
+        res.json({ success: true, message: 'Пользователь создан' });
+    } catch (e) {
+        if (e.code === '23505') return res.status(400).json({ error: 'Логин уже занят' });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.put('/api/admin2/users/:id', authenticateToken, async (req, res) => {
+    if (!PLANS_ADMIN_CHECK(req, res)) return;
+    try {
+        const { username, password, fullName, role, regionIndex } = req.body;
+        const { id } = req.params;
+        const org = (regionIndex !== null && regionIndex !== undefined && regionIndex >= 0)
+            ? PLAN_REGIONS[regionIndex] : '';
+        if (password && password.trim()) {
+            const hash = await bcrypt.hash(password, 10);
+            await pool.query(
+                `UPDATE users SET username=$1, password=$2, full_name=$3, organization=$4, role=$5 WHERE id=$6`,
+                [username, hash, fullName || username, org, role || 'user', id]
+            );
+        } else {
+            await pool.query(
+                `UPDATE users SET username=$1, full_name=$2, organization=$3, role=$4 WHERE id=$5`,
+                [username, fullName || username, org, role || 'user', id]
+            );
+        }
+        res.json({ success: true, message: 'Пользователь обновлён' });
+    } catch (e) {
+        if (e.code === '23505') return res.status(400).json({ error: 'Логин уже занят' });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/api/admin2/users/:id', authenticateToken, async (req, res) => {
+    if (!PLANS_ADMIN_CHECK(req, res)) return;
+    try {
+        const { id } = req.params;
+        if (id === req.user.id) return res.status(400).json({ error: 'Нельзя удалить себя' });
+        await pool.query(`DELETE FROM users WHERE id=$1 AND form_type='plans'`, [id]);
+        res.json({ success: true, message: 'Пользователь удалён' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 /**
  * GET /api/user/profile
  */

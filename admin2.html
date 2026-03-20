@@ -11,12 +11,79 @@
             <h1>🔐 Админ-панель - Планы работы департаментов</h1>
             <div class="header-actions" style="display: flex; gap: 1rem;">
                 <a href="/index2" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem;">📝 К формам</a>
+                <button id="usersTabBtn" onclick="toggleUsersSection()" style="display:none; background: rgba(255,255,255,0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; align-items: center; gap: 0.5rem;">👥 Пользователи</button>
                 <button onclick="location.reload()" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem;">🔄 Обновить</button>
             </div>
         </div>
     </header>
 
+    <!-- ===== Модальное окно добавления/редактирования пользователя ===== -->
+    <div id="userModal" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+        <div class="modal-content" style="background:white; border-radius:12px; padding:2rem; max-width:500px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <h2 id="userModalTitle" style="margin-bottom:1.5rem; font-size:1.3rem;">Добавить пользователя</h2>
+            <div style="display:flex; flex-direction:column; gap:1rem;">
+                <div>
+                    <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">Логин *</label>
+                    <input id="uLogin" type="text" placeholder="Логин" style="width:100%; padding:0.75rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">Пароль <span id="uPasswordHint" style="color:#9ca3af; font-weight:400;">(оставьте пустым чтобы не менять)</span></label>
+                    <input id="uPassword" type="password" placeholder="Пароль" style="width:100%; padding:0.75rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">Полное имя</label>
+                    <input id="uFullName" type="text" placeholder="Полное имя (необязательно)" style="width:100%; padding:0.75rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">Доступ к данным</label>
+                    <select id="uRole" onchange="onUserRoleChange()" style="width:100%; padding:0.75rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; cursor:pointer;">
+                        <option value="planner">Полный доступ (план + факт, все регионы)</option>
+                        <option value="user">Только фактические показатели (1 регион)</option>
+                        <option value="plan_only">Только плановые показатели (все регионы)</option>
+                        <option value="viewer">Только просмотр (без редактирования)</option>
+                    </select>
+                </div>
+                <div id="uRegionGroup" style="display:none;">
+                    <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">Регион</label>
+                    <select id="uRegion" style="width:100%; padding:0.75rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; cursor:pointer;">
+                        <option value="-1">Не выбран</option>
+                    </select>
+                </div>
+            </div>
+            <div id="uModalError" style="display:none; margin-top:1rem; padding:0.75rem 1rem; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; color:#dc2626; font-size:0.9rem;"></div>
+            <div style="display:flex; gap:1rem; margin-top:1.5rem;">
+                <button onclick="saveUserModal()" style="flex:1; padding:0.85rem; background:#1a56db; color:white; border:none; border-radius:6px; font-size:1rem; font-weight:600; cursor:pointer;">💾 Сохранить</button>
+                <button onclick="closeUserModal()" style="flex:1; padding:0.85rem; background:#e5e7eb; color:#374151; border:none; border-radius:6px; font-size:1rem; font-weight:600; cursor:pointer;">Отмена</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
+        <!-- ===== Секция управления пользователями (только для admin) ===== -->
+        <div id="usersSection" style="display:none; background:white; padding:2rem; border-radius:8px; margin-bottom:2rem; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+                <h2 style="font-size:1.4rem; font-weight:700;">👥 Управление пользователями</h2>
+                <button onclick="openAddUser()" style="padding:0.75rem 1.5rem; background:#1a56db; color:white; border:none; border-radius:6px; font-size:0.95rem; font-weight:600; cursor:pointer;">+ Добавить пользователя</button>
+            </div>
+            <div style="overflow-x:auto;">
+                <table class="report-table" style="min-width:700px;">
+                    <thead>
+                        <tr>
+                            <th style="width:140px;">Логин</th>
+                            <th>Полное имя</th>
+                            <th style="width:180px;">Регион</th>
+                            <th style="width:220px;">Доступ</th>
+                            <th style="width:130px;">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTbody">
+                        <tr><td colspan="5" style="text-align:center; color:#9ca3af; padding:2rem;">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="plansSection">
         <div class="filters" style="padding: 1.5rem; background: white; border-radius: 8px; margin-bottom: 2rem;">
             <h3>Просмотр данных по регионам</h3>
             <div style="margin-top: 1rem;">
@@ -56,7 +123,8 @@
         </nav>
 
         <div id="plans-container"></div>
-    </div>
+        </div><!-- /plansSection -->
+    </div><!-- /container -->
 
     <script>
         const REGIONS = [
@@ -83,6 +151,7 @@
         let currentTab = 1;
         let allPlans = null;
         let allNotes = {};
+        let currentIsAdmin = false; // только admin (не planner) видит управление пользователями
 
         async function checkAdminAccess() {
             const token = localStorage.getItem('accessToken');
@@ -101,13 +170,19 @@
                 
                 if (!data.success || !data.user) throw new Error('User data not found');
                 
-                // Разрешаем admin и viewer с formType = 'plans'
                 const isPlansAdmin = data.user.role === 'admin' && data.user.formType === 'plans';
                 const isPlanner = data.user.role === 'planner' && data.user.formType === 'plans';
                 if (!isPlansAdmin && !isPlanner) {
                     alert('Доступ запрещен');
                     window.location.href = '/index.html';
                     return false;
+                }
+
+                // Показываем кнопку "Пользователи" только для admin
+                if (isPlansAdmin) {
+                    currentIsAdmin = true;
+                    const btn = document.getElementById('usersTabBtn');
+                    if (btn) btn.style.display = 'flex';
                 }
 
                 return true;
@@ -118,6 +193,178 @@
                 return false;
             }
         }
+
+        // =====================================================================
+        // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
+        // =====================================================================
+
+        let usersSectionVisible = false;
+        let editingUserId = null;
+
+        const ACCESS_LABELS = {
+            admin:      'Суперадмин (admin2)',
+            planner:    'Полный доступ (план + факт)',
+            user:       'Только фактические',
+            plan_only:  'Только плановые',
+            viewer:     'Только просмотр'
+        };
+
+        function toggleUsersSection() {
+            usersSectionVisible = !usersSectionVisible;
+            document.getElementById('usersSection').style.display = usersSectionVisible ? 'block' : 'none';
+            document.getElementById('plansSection').style.display = usersSectionVisible ? 'none' : 'block';
+            if (usersSectionVisible) loadUsers();
+        }
+
+        async function loadUsers() {
+            const token = localStorage.getItem('accessToken');
+            const tbody = document.getElementById('usersTbody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#9ca3af; padding:2rem;">Загрузка...</td></tr>';
+            try {
+                const r = await fetch('/api/admin2/users', { headers: { 'Authorization': `Bearer ${token}` } });
+                const data = await r.json();
+                if (!data.success) throw new Error(data.error || 'Ошибка');
+                renderUsersTable(data.users);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#dc2626; padding:2rem;">Ошибка: ${e.message}</td></tr>`;
+            }
+        }
+
+        function renderUsersTable(users) {
+            const tbody = document.getElementById('usersTbody');
+            if (!users.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#9ca3af; padding:2rem;">Нет пользователей</td></tr>';
+                return;
+            }
+            tbody.innerHTML = users.map(u => {
+                const regionLabel = (u.regionIndex !== null && u.regionIndex !== undefined && u.regionIndex >= 0)
+                    ? REGIONS[u.regionIndex] || '—' : '—';
+                const accessLabel = ACCESS_LABELS[u.role] || u.role;
+                const accessColor = u.role === 'viewer' ? '#9ca3af' : u.role === 'admin' ? '#7c3aed' : u.role === 'planner' ? '#1a56db' : u.role === 'plan_only' ? '#0891b2' : '#059669';
+                return `<tr>
+                    <td style="font-weight:600;">${u.username}</td>
+                    <td style="color:#374151;">${u.fullName || '—'}</td>
+                    <td style="color:#6b7280; font-size:0.9rem;">${regionLabel}</td>
+                    <td><span style="display:inline-block; padding:0.25rem 0.75rem; background:${accessColor}18; color:${accessColor}; border-radius:20px; font-size:0.85rem; font-weight:600;">${accessLabel}</span></td>
+                    <td>
+                        <div style="display:flex; gap:0.5rem;">
+                            <button onclick="openEditUser(${JSON.stringify(u).replace(/"/g,'&quot;')})" style="padding:0.4rem 0.75rem; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; border-radius:4px; font-size:0.8rem; cursor:pointer; font-weight:600;">✏️ Изм.</button>
+                            <button onclick="deleteUser('${u.id}','${u.username}')" style="padding:0.4rem 0.75rem; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; border-radius:4px; font-size:0.8rem; cursor:pointer; font-weight:600;">🗑️ Удал.</button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function onUserRoleChange() {
+            const role = document.getElementById('uRole').value;
+            document.getElementById('uRegionGroup').style.display = role === 'user' ? 'block' : 'none';
+        }
+
+        function openAddUser() {
+            editingUserId = null;
+            document.getElementById('userModalTitle').textContent = 'Добавить пользователя';
+            document.getElementById('uLogin').value = '';
+            document.getElementById('uPassword').value = '';
+            document.getElementById('uFullName').value = '';
+            document.getElementById('uRole').value = 'user';
+            document.getElementById('uPasswordHint').style.display = 'none';
+            onUserRoleChange();
+            document.getElementById('uModalError').style.display = 'none';
+            populateRegionDropdown();
+            const modal = document.getElementById('userModal');
+            modal.style.display = 'flex';
+        }
+
+        function openEditUser(u) {
+            editingUserId = u.id;
+            document.getElementById('userModalTitle').textContent = 'Редактировать пользователя';
+            document.getElementById('uLogin').value = u.username;
+            document.getElementById('uPassword').value = '';
+            document.getElementById('uFullName').value = u.fullName || '';
+            document.getElementById('uRole').value = u.role || 'user';
+            document.getElementById('uPasswordHint').style.display = 'inline';
+            onUserRoleChange();
+            document.getElementById('uModalError').style.display = 'none';
+            populateRegionDropdown(u.regionIndex);
+            const modal = document.getElementById('userModal');
+            modal.style.display = 'flex';
+        }
+
+        function populateRegionDropdown(selectedIndex) {
+            const sel = document.getElementById('uRegion');
+            sel.innerHTML = '<option value="-1">Не выбран</option>' +
+                REGIONS.map((r, i) => `<option value="${i}" ${i === selectedIndex ? 'selected' : ''}>${r}</option>`).join('');
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').style.display = 'none';
+            editingUserId = null;
+        }
+
+        async function saveUserModal() {
+            const token = localStorage.getItem('accessToken');
+            const login = document.getElementById('uLogin').value.trim();
+            const password = document.getElementById('uPassword').value;
+            const fullName = document.getElementById('uFullName').value.trim();
+            const role = document.getElementById('uRole').value;
+            const regionIndex = parseInt(document.getElementById('uRegion').value);
+            const errorEl = document.getElementById('uModalError');
+
+            if (!login) {
+                errorEl.textContent = 'Введите логин';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (!editingUserId && !password) {
+                errorEl.textContent = 'Введите пароль для нового пользователя';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            const body = { username: login, fullName, role, regionIndex: regionIndex >= 0 ? regionIndex : null };
+            if (password) body.password = password;
+
+            try {
+                const url = editingUserId ? `/api/admin2/users/${editingUserId}` : '/api/admin2/users';
+                const method = editingUserId ? 'PUT' : 'POST';
+                const r = await fetch(url, {
+                    method,
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await r.json();
+                if (!data.success) {
+                    errorEl.textContent = data.error || 'Ошибка сохранения';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                closeUserModal();
+                loadUsers();
+            } catch (e) {
+                errorEl.textContent = 'Ошибка сети: ' + e.message;
+                errorEl.style.display = 'block';
+            }
+        }
+
+        async function deleteUser(id, username) {
+            if (!confirm(`Удалить пользователя «${username}»? Это действие нельзя отменить.`)) return;
+            const token = localStorage.getItem('accessToken');
+            try {
+                const r = await fetch(`/api/admin2/users/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await r.json();
+                if (!data.success) { alert(data.error || 'Ошибка удаления'); return; }
+                loadUsers();
+            } catch (e) { alert('Ошибка: ' + e.message); }
+        }
+
+        // Закрытие модала по клику вне него
+        document.getElementById('userModal').addEventListener('click', function(e) {
+            if (e.target === this) closeUserModal();
+        });
 
         async function loadPlans() {
             const token = localStorage.getItem('accessToken');

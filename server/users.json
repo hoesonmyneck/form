@@ -38,7 +38,7 @@
       "email": "astana",
       "password": "astana",
       "fullName": "ДКРиКСЗН по г. Астана",
-      "organization": "Территориальный департамент КРиКСЗН по г. Астана",
+      "organization": "г. Астана",
       "role": "user",
       "formType": "plans",
       "createdAt": "2026-03-01T00:00:00.000Z"
@@ -750,9 +750,24 @@
       "expiresAt": "2026-03-26T09:33:03.294Z"
     },
     {
-      "userId": "mluv9l0hu3b1rs0mq7p",
-      "token": "ur5zw9b7beammxf66z3",
-      "expiresAt": "2026-03-26T12:01:28.527Z"
+      "userId": "admin002",
+      "token": "te3rdslkmrsmmxh85lw",
+      "expiresAt": "2026-03-26T12:58:59.300Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "byfyhvw7wegmmydsxdi",
+      "expiresAt": "2026-03-27T04:10:56.118Z"
+    },
+    {
+      "userId": "reg001",
+      "token": "bodea58eycmmydyop9",
+      "expiresAt": "2026-03-27T04:15:24.813Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "ucyichgarxmmydyv6s",
+      "expiresAt": "2026-03-27T04:15:33.220Z"
     }
   ]
 }

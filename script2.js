@@ -1,7 +1,8 @@
 // Индекс региона текущего пользователя (null = admin/planner, видит всё)
 let userRegionIndex = null;
 let userIsAdmin   = false;
-let userIsPlanner = false; // krik: редактирует только плановый показатель
+let userIsPlanner = false;
+let currentUserRole = null; // 'admin' | 'planner' | 'user' | 'plan_only' | 'viewer'
 
 // Список регионов
 const REGIONS = [
@@ -62,13 +63,18 @@ function checkAuth() {
                 return;
             }
 
-            // Сохраняем флаги роли и regionIndex
+            // Сохраняем роль и флаги
+            currentUserRole = data.user.role;
             if (data.user.role === 'admin') {
                 userIsAdmin = true;
                 document.getElementById('adminPanelBtn').style.display = 'block';
             } else if (data.user.role === 'planner') {
                 userIsPlanner = true;
                 document.getElementById('adminPanelBtn').style.display = 'block';
+            } else if (data.user.role === 'viewer') {
+                // Скрываем кнопку сохранения для read-only пользователей
+                const saveBtn = document.getElementById('savePlansBtn');
+                if (saveBtn) saveBtn.style.display = 'none';
             }
 
             if (data.user.regionIndex !== null && data.user.regionIndex !== undefined) {
@@ -147,31 +153,42 @@ function applyRegionalFilter() {
 }
 
 // Ограничения по колонкам в зависимости от роли:
-// admin    → редактирует всё
-// planner  → редактирует только col 0 (плановый показатель)
-// regional → редактирует только col 1 (фактический показатель) своей строки
+// admin      → редактирует всё
+// planner    → редактирует всё (krik)
+// user       → только col 1 (фактический) своей строки
+// plan_only  → только col 0 (плановый), все строки
+// viewer     → ничего не редактирует
 function applyColumnRestrictions() {
-    if (userIsAdmin) return; // Нет ограничений
+    if (userIsAdmin || userIsPlanner) return; // Нет ограничений
+
+    const role = currentUserRole;
 
     for (let planNum = 1; planNum <= 8; planNum++) {
         const tbody = document.getElementById(`plan${planNum}-tbody`);
         if (!tbody) continue;
 
-        tbody.querySelectorAll('tr').forEach((row, rowIdx) => {
+        tbody.querySelectorAll('tr').forEach((row) => {
             const inputs = row.querySelectorAll('input');
             // inputs[0] = плановый, inputs[1] = фактический, inputs[2] = коэффициент (всегда readonly)
 
-            if (userIsPlanner) {
-                // krik: только плановый показатель (col 0) редактируем
-                // Блокируем col 1 (фактический)
+            if (role === 'viewer') {
+                // Только просмотр: блокируем всё
+                if (inputs[0]) lockInput(inputs[0]);
                 if (inputs[1]) lockInput(inputs[1]);
-
+            } else if (role === 'plan_only') {
+                // Только плановый: блокируем фактический
+                if (inputs[1]) lockInput(inputs[1]);
             } else if (userRegionIndex !== null) {
-                // Региональный пользователь: только фактический показатель (col 1)
-                // Блокируем col 0 (плановый)
+                // Региональный пользователь (role='user'): только фактический
                 if (inputs[0]) lockInput(inputs[0]);
             }
         });
+    }
+
+    // Скрываем кнопку сохранения для viewer
+    if (role === 'viewer') {
+        const saveBtn = document.getElementById('savePlansBtn');
+        if (saveBtn) saveBtn.style.display = 'none';
     }
 }
 
