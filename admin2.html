@@ -11,7 +11,8 @@
             <h1>🔐 Админ-панель - Планы работы департаментов</h1>
             <div class="header-actions" style="display: flex; gap: 1rem;">
                 <a href="/index2" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem;">📝 К формам</a>
-                <button id="usersTabBtn" onclick="toggleUsersSection()" style="display:none; background: rgba(255,255,255,0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; align-items: center; gap: 0.5rem;">👥 Пользователи</button>
+                <button id="usersTabBtn" onclick="showSection('users')" style="display:none; background: rgba(255,255,255,0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; align-items: center; gap: 0.5rem;">👥 Пользователи</button>
+                <button id="historyTabBtn" onclick="showSection('history')" style="display:none; background: rgba(255,255,255,0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; align-items: center; gap: 0.5rem;">📅 История</button>
                 <button onclick="location.reload()" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem;">🔄 Обновить</button>
             </div>
         </div>
@@ -80,6 +81,40 @@
                         <tr><td colspan="5" style="text-align:center; color:#9ca3af; padding:2rem;">Загрузка...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- ===== Секция истории снимков ===== -->
+        <div id="historySection" style="display:none;">
+            <div style="background:white; padding:2rem; border-radius:8px; margin-bottom:1.5rem; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
+                    <h2 style="font-size:1.4rem; font-weight:700;">📅 История снимков</h2>
+                    <button onclick="takeSnapshotNow()" id="snapshotBtn" style="padding:0.75rem 1.5rem; background:#059669; color:white; border:none; border-radius:6px; font-size:0.95rem; font-weight:600; cursor:pointer;">📸 Сохранить снимок сейчас</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+                    <div>
+                        <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">Дата снимка:</label>
+                        <select id="historyDateSelect" onchange="loadHistorySnapshot()" style="padding:0.75rem 1rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; min-width:220px; cursor:pointer;">
+                            <option value="">— Выберите дату —</option>
+                        </select>
+                    </div>
+                    <div id="historyMeta" style="display:none; margin-top:1.2rem; padding:0.5rem 1rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; color:#166534; font-size:0.9rem;"></div>
+                </div>
+                <div id="historyEmpty" style="display:none; margin-top:1rem; color:#9ca3af; font-size:0.95rem;">История пуста. Первый снимок сохранится в ближайшую пятницу или нажмите кнопку выше.</div>
+            </div>
+
+            <div id="historyContent" style="display:none;">
+                <nav class="nav-tabs" id="historyTabs">
+                    <button class="tab-btn active" onclick="switchHistoryTab(1)">План № 1</button>
+                    <button class="tab-btn" onclick="switchHistoryTab(2)">План № 2</button>
+                    <button class="tab-btn" onclick="switchHistoryTab(3)">План № 3</button>
+                    <button class="tab-btn" onclick="switchHistoryTab(4)">План № 4</button>
+                    <button class="tab-btn" onclick="switchHistoryTab(5)">План № 5</button>
+                    <button class="tab-btn" onclick="switchHistoryTab(6)">План № 6</button>
+                    <button class="tab-btn" onclick="switchHistoryTab(7)">План № 7</button>
+                    <button class="tab-btn" onclick="switchHistoryTab(8)">План № 8</button>
+                </nav>
+                <div id="historyTable" style="background:white; padding:2rem; border-radius:0 0 8px 8px;"></div>
             </div>
         </div>
 
@@ -178,11 +213,13 @@
                     return false;
                 }
 
-                // Показываем кнопку "Пользователи" только для admin
+                // Показываем кнопки "Пользователи" и "История" только для admin
                 if (isPlansAdmin) {
                     currentIsAdmin = true;
                     const btn = document.getElementById('usersTabBtn');
                     if (btn) btn.style.display = 'flex';
+                    const hBtn = document.getElementById('historyTabBtn');
+                    if (hBtn) hBtn.style.display = 'flex';
                 }
 
                 return true;
@@ -198,8 +235,17 @@
         // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
         // =====================================================================
 
-        let usersSectionVisible = false;
+        let currentSection = 'plans'; // 'plans' | 'users' | 'history'
         let editingUserId = null;
+
+        function showSection(section) {
+            currentSection = section;
+            document.getElementById('usersSection').style.display   = section === 'users'   ? 'block' : 'none';
+            document.getElementById('historySection').style.display  = section === 'history' ? 'block' : 'none';
+            document.getElementById('plansSection').style.display    = section === 'plans'   ? 'block' : 'none';
+            if (section === 'users') loadUsers();
+            if (section === 'history') loadHistoryList();
+        }
 
         const ACCESS_LABELS = {
             admin:      'Суперадмин (admin2)',
@@ -209,12 +255,151 @@
             viewer:     'Только просмотр'
         };
 
-        function toggleUsersSection() {
-            usersSectionVisible = !usersSectionVisible;
-            document.getElementById('usersSection').style.display = usersSectionVisible ? 'block' : 'none';
-            document.getElementById('plansSection').style.display = usersSectionVisible ? 'none' : 'block';
-            if (usersSectionVisible) loadUsers();
+        // =====================================================================
+        // ИСТОРИЯ
+        // =====================================================================
+
+        let historyPlans = null;
+        let historyNotes = {};
+        let currentHistoryTab = 1;
+
+        async function loadHistoryList() {
+            const token = localStorage.getItem('accessToken');
+            try {
+                const r = await fetch('/api/plans/history', { headers: { 'Authorization': `Bearer ${token}` } });
+                const data = await r.json();
+                const sel = document.getElementById('historyDateSelect');
+                sel.innerHTML = '<option value="">— Выберите дату —</option>';
+                if (data.success && data.snapshots && data.snapshots.length) {
+                    document.getElementById('historyEmpty').style.display = 'none';
+                    data.snapshots.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.date;
+                        const d = new Date(s.date);
+                        const label = d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
+                        opt.textContent = label;
+                        sel.appendChild(opt);
+                    });
+                } else {
+                    document.getElementById('historyEmpty').style.display = 'block';
+                }
+            } catch (e) { console.error('Ошибка загрузки истории:', e); }
         }
+
+        async function loadHistorySnapshot() {
+            const date = document.getElementById('historyDateSelect').value;
+            if (!date) {
+                document.getElementById('historyContent').style.display = 'none';
+                document.getElementById('historyMeta').style.display = 'none';
+                return;
+            }
+            const token = localStorage.getItem('accessToken');
+            try {
+                const r = await fetch(`/api/plans/history/${date}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const data = await r.json();
+                if (data.success && data.found) {
+                    historyPlans = data.plans;
+                    historyNotes = data.notes || {};
+                    const d = new Date(date);
+                    document.getElementById('historyMeta').textContent =
+                        `Снимок за ${d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+                    document.getElementById('historyMeta').style.display = 'block';
+                    document.getElementById('historyContent').style.display = 'block';
+                    currentHistoryTab = 1;
+                    document.querySelectorAll('#historyTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+                    renderHistoryTable(1);
+                }
+            } catch (e) { console.error('Ошибка загрузки снимка:', e); }
+        }
+
+        function switchHistoryTab(n) {
+            currentHistoryTab = n;
+            document.querySelectorAll('#historyTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i + 1 === n));
+            renderHistoryTable(n);
+        }
+
+        function renderHistoryTable(planNumber) {
+            const el = document.getElementById('historyTable');
+            if (!historyPlans || !historyPlans[`plan${planNumber}`]) {
+                el.innerHTML = '<div style="text-align:center; padding:2rem; color:#9ca3af;">Нет данных</div>';
+                return;
+            }
+            const data = historyPlans[`plan${planNumber}`];
+            let html = `<h2 style="margin-bottom:0.5rem;">План № ${planNumber}</h2>`;
+            html += `<p style="color:#64748b; margin-bottom:1.5rem; font-size:0.95rem;">${PLAN_TITLES[planNumber]}</p>`;
+            html += '<table class="report-table"><thead><tr>';
+            html += '<th style="width:50px;">№</th><th>Территориальный департамент</th>';
+            html += '<th>Плановый показатель</th><th>Фактический показатель</th><th>Коэф. исполнения</th>';
+            html += '</tr></thead><tbody>';
+            data.forEach((row, rowIndex) => {
+                html += '<tr>';
+                row.forEach((cell, colIndex) => {
+                    if (colIndex === 0) html += `<td style="text-align:center; font-weight:600;">${cell}</td>`;
+                    else if (colIndex === 1) html += `<td><strong>${cell}</strong></td>`;
+                    else {
+                        const nk = `plan${planNumber}_${rowIndex}_${colIndex - 2}`;
+                        const hasNote = historyNotes[nk];
+                        html += `<td style="text-align:center;${hasNote ? ' background:#fef3c7; cursor:pointer;' : ''}"${hasNote ? ` onclick="showNote_h('${nk}')" title="Кликните для просмотра"` : ''}>${cell || '—'}${hasNote ? ' 📝' : ''}</td>`;
+                    }
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
+        function showNote_h(noteKey) {
+            const noteText = historyNotes[noteKey];
+            if (!noteText) return;
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.innerHTML = `<div class="modal-content" style="max-width:600px;"><h2 style="margin-bottom:1rem;">📝 Примечание</h2><div style="padding:1rem; background:#f9fafb; border-radius:6px; border:1px solid #e5e7eb; white-space:pre-wrap;">${noteText}</div><button onclick="this.closest('.modal').remove()" style="margin-top:1rem; padding:0.75rem 2rem; background:#6b7280; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Закрыть</button></div>`;
+            document.body.appendChild(modal);
+        }
+
+        async function takeSnapshotNow() {
+            const btn = document.getElementById('snapshotBtn');
+            const token = localStorage.getItem('accessToken');
+            btn.disabled = true;
+            btn.textContent = '⏳ Сохранение...';
+            try {
+                const r = await fetch('/api/plans/snapshot', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await r.json();
+                if (data.success) {
+                    btn.textContent = '✅ Сохранено!';
+                    btn.style.background = '#1a56db';
+                    setTimeout(() => {
+                        btn.textContent = '📸 Сохранить снимок сейчас';
+                        btn.style.background = '#059669';
+                        btn.disabled = false;
+                    }, 2000);
+                    loadHistoryList();
+                } else {
+                    btn.textContent = '⚠️ ' + (data.message || 'Ошибка');
+                    btn.style.background = '#dc2626';
+                    setTimeout(() => {
+                        btn.textContent = '📸 Сохранить снимок сейчас';
+                        btn.style.background = '#059669';
+                        btn.disabled = false;
+                    }, 3000);
+                }
+            } catch (e) {
+                btn.textContent = '❌ Ошибка';
+                btn.style.background = '#dc2626';
+                setTimeout(() => {
+                    btn.textContent = '📸 Сохранить снимок сейчас';
+                    btn.style.background = '#059669';
+                    btn.disabled = false;
+                }, 3000);
+            }
+        }
+
+        // =====================================================================
+        // ПОЛЬЗОВАТЕЛИ
+        // =====================================================================
 
         async function loadUsers() {
             const token = localStorage.getItem('accessToken');

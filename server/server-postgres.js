@@ -30,6 +30,19 @@ pool.connect((err, client, release) => {
     } else {
         console.log('✅ Подключено к PostgreSQL');
         release();
+        // Создаём таблицу истории если её нет
+        pool.query(`
+            CREATE TABLE IF NOT EXISTS plan_history (
+                id VARCHAR(50) PRIMARY KEY,
+                snapshot_date DATE NOT NULL UNIQUE,
+                plans_data JSONB NOT NULL DEFAULT '{}',
+                notes_data JSONB NOT NULL DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `).then(() => {
+            console.log('✅ Таблица plan_history готова');
+            scheduleFridaySnapshot();
+        }).catch(e => console.error('❌ plan_history:', e.message));
     }
 });
 
@@ -1035,6 +1048,109 @@ app.get('/index2', (req, res) => {
 
 app.get('/admin2', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'admin2.html'));
+});
+
+// =====================================================
+// ИСТОРИЯ ПЛАНОВ (СНИМКИ ПО ПЯТНИЦАМ)
+// =====================================================
+
+async function takeAutoSnapshot(label) {
+    try {
+        const adminUser = await pool.query(
+            `SELECT id FROM users WHERE role='admin' AND form_type='plans' LIMIT 1`
+        );
+        if (!adminUser.rows.length) { console.log('Снимок: admin2 не найден'); return false; }
+        const adminId = adminUser.rows[0].id;
+        const doc = await pool.query(
+            `SELECT plans, notes FROM documents WHERE user_id=$1 AND type='plans' ORDER BY updated_at DESC LIMIT 1`,
+            [adminId]
+        );
+        if (!doc.rows.length) { console.log('Снимок: нет данных планов'); return false; }
+        const plans = doc.rows[0].plans || {};
+        const notes = doc.rows[0].notes || {};
+        const snapshotDate = new Date().toISOString().split('T')[0];
+        await pool.query(
+            `INSERT INTO plan_history (id, snapshot_date, plans_data, notes_data, created_at)
+             VALUES ($1,$2,$3,$4,NOW())
+             ON CONFLICT (snapshot_date) DO UPDATE
+             SET plans_data=EXCLUDED.plans_data, notes_data=EXCLUDED.notes_data, created_at=NOW()`,
+            [generateId(), snapshotDate, JSON.stringify(plans), JSON.stringify(notes)]
+        );
+        console.log(`✅ Снимок планов сохранён за ${snapshotDate}${label ? ' (' + label + ')' : ''}`);
+        return true;
+    } catch (e) {
+        console.error('❌ Ошибка снимка:', e.message);
+        return false;
+    }
+}
+
+function scheduleFridaySnapshot() {
+    function getNextFriday9am() {
+        const now = new Date();
+        const d = new Date(now);
+        const day = d.getDay(); // 0=вс, 5=пт
+        let daysUntil = (5 - day + 7) % 7;
+        if (daysUntil === 0 && (d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() >= 1))) {
+            daysUntil = 7;
+        }
+        d.setDate(d.getDate() + daysUntil);
+        d.setHours(9, 0, 0, 0);
+        return d;
+    }
+    function scheduleNext() {
+        const next = getNextFriday9am();
+        const delay = next - new Date();
+        const hours = Math.round(delay / 36e5);
+        console.log(`⏰ Следующий авто-снимок планов: ${next.toLocaleString('ru-RU')} (через ~${hours} ч.)`);
+        setTimeout(async () => {
+            await takeAutoSnapshot('авто, пятница');
+            scheduleNext();
+        }, delay);
+    }
+    scheduleNext();
+}
+
+// GET /api/plans/history — список дат снимков
+app.get('/api/plans/history', authenticateToken, async (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    try {
+        const result = await pool.query(
+            `SELECT id, snapshot_date, created_at FROM plan_history ORDER BY snapshot_date DESC`
+        );
+        res.json({ success: true, snapshots: result.rows.map(r => ({
+            id: r.id,
+            date: r.snapshot_date.toISOString().split('T')[0],
+            createdAt: r.created_at
+        }))});
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/plans/history/:date — данные за конкретную дату
+app.get('/api/plans/history/:date', authenticateToken, async (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    try {
+        const result = await pool.query(
+            `SELECT plans_data, notes_data FROM plan_history WHERE snapshot_date=$1`,
+            [req.params.date]
+        );
+        if (!result.rows.length) return res.json({ success: false, found: false });
+        const r = result.rows[0];
+        res.json({ success: true, found: true, plans: r.plans_data, notes: r.notes_data });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/plans/snapshot — ручной снимок
+app.post('/api/plans/snapshot', authenticateToken, async (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    const ok = await takeAutoSnapshot('ручной');
+    if (ok) res.json({ success: true, message: 'Снимок сохранён' });
+    else res.json({ success: false, message: 'Нет данных для снимка' });
 });
 
 // СТАТИКА (В КОНЦЕ!)

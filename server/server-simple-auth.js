@@ -44,6 +44,7 @@ const REGION_USERS = {
 };
 const DB_FILE = path.join(__dirname, 'documents.json');
 const USERS_FILE = path.join(__dirname, 'users.json');
+const HISTORY_FILE = path.join(__dirname, 'plan_history.json');
 
 // Создаём папку uploads если её нет
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -53,6 +54,11 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 // Инициализируем "базу данных" документов
 if (!fs.existsSync(DB_FILE)) {
     fs.writeFileSync(DB_FILE, JSON.stringify({ documents: [] }, null, 2));
+}
+
+// Инициализируем файл истории
+if (!fs.existsSync(HISTORY_FILE)) {
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify({ snapshots: [] }, null, 2));
 }
 
 // Инициализируем "базу данных" пользователей
@@ -98,6 +104,16 @@ function readDB() {
 
 function writeDB(data) {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+}
+
+function readHistory() {
+    try {
+        return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+    } catch { return { snapshots: [] }; }
+}
+
+function writeHistory(data) {
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
 }
 
 function readUsers() {
@@ -1270,6 +1286,96 @@ app.get('/index2', (req, res) => {
  */
 app.get('/admin2', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'admin2.html'));
+});
+
+// =====================================================
+// ИСТОРИЯ ПЛАНОВ (СНИМКИ ПО ПЯТНИЦАМ)
+// =====================================================
+
+function takeSnapshotDev(label) {
+    try {
+        const db = readDB();
+        const usersData = readUsers();
+        const admin2 = usersData.users.find(u => u.role === 'admin' && u.formType === 'plans');
+        if (!admin2) { console.log('Снимок: admin2 не найден'); return false; }
+        const doc = db.documents.find(d => d.userId === admin2.id && d.type === 'plans');
+        if (!doc) { console.log('Снимок: нет данных планов (нет документа для', admin2.id, ')'); return false; }
+        // Документ хранит планы напрямую в doc.plans (не в doc.data.plans)
+        const plans = doc.plans || {};
+        const notes = doc.notes || {};
+        const planKeys = Object.keys(plans);
+        console.log(`Снимок: найдено планов=${planKeys.length}, ключи: ${planKeys.join(', ')}`);
+        const snapshotDate = new Date().toISOString().split('T')[0];
+        const history = readHistory();
+        const idx = history.snapshots.findIndex(s => s.date === snapshotDate);
+        const snap = { id: generateId(), date: snapshotDate, plans, notes, createdAt: new Date().toISOString() };
+        if (idx >= 0) history.snapshots[idx] = snap;
+        else history.snapshots.unshift(snap);
+        history.snapshots.sort((a, b) => b.date.localeCompare(a.date));
+        writeHistory(history);
+        console.log(`✅ Снимок планов (dev) сохранён за ${snapshotDate}${label ? ' (' + label + ')' : ''}`);
+        return true;
+    } catch (e) {
+        console.error('❌ Ошибка снимка (dev):', e.message);
+        return false;
+    }
+}
+
+function scheduleFridaySnapshot() {
+    function getNextFriday9am() {
+        const now = new Date();
+        const d = new Date(now);
+        const day = d.getDay();
+        let daysUntil = (5 - day + 7) % 7;
+        if (daysUntil === 0 && (d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() >= 1))) {
+            daysUntil = 7;
+        }
+        d.setDate(d.getDate() + daysUntil);
+        d.setHours(9, 0, 0, 0);
+        return d;
+    }
+    function scheduleNext() {
+        const next = getNextFriday9am();
+        const delay = next - new Date();
+        const hours = Math.round(delay / 36e5);
+        console.log(`⏰ Следующий авто-снимок (dev): ${next.toLocaleString('ru-RU')} (через ~${hours} ч.)`);
+        setTimeout(() => {
+            takeSnapshotDev('авто, пятница');
+            scheduleNext();
+        }, delay);
+    }
+    scheduleNext();
+}
+
+scheduleFridaySnapshot();
+
+// GET /api/plans/history
+app.get('/api/plans/history', authenticateToken, (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    const history = readHistory();
+    res.json({ success: true, snapshots: history.snapshots.map(s => ({ id: s.id, date: s.date, createdAt: s.createdAt })) });
+});
+
+// GET /api/plans/history/:date
+app.get('/api/plans/history/:date', authenticateToken, (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    const history = readHistory();
+    const snap = history.snapshots.find(s => s.date === req.params.date);
+    if (!snap) return res.json({ success: false, found: false });
+    res.json({ success: true, found: true, plans: snap.plans, notes: snap.notes });
+});
+
+// POST /api/plans/snapshot
+app.post('/api/plans/snapshot', authenticateToken, (req, res) => {
+    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    const ok = takeSnapshotDev('ручной');
+    res.json({ success: ok, message: ok ? 'Снимок сохранён' : 'Нет данных для снимка' });
 });
 
 // =====================================================
