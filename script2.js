@@ -84,14 +84,14 @@ function checkAuth() {
 
             // Блокируем поля дат для не-админов
             if (data.user.role !== 'admin') {
-                ['plan1-date', 'plan2-date'].forEach(id => {
-                    const el = document.getElementById(id);
+                for (let p = 1; p <= 8; p++) {
+                    const el = document.getElementById(`plan${p}-date`);
                     if (el) {
                         el.disabled = true;
                         el.style.background = '#f3f4f6';
                         el.style.cursor = 'not-allowed';
                     }
-                });
+                }
             }
 
             // Применяем ограничения колонок сразу (таблицы уже могут быть созданы)
@@ -113,6 +113,9 @@ function checkAuth() {
 // Хранилище примечаний
 const notes = {};
 
+// Планы, для которых строка «Всего» рассчитывается автоматически
+const AUTO_TOTAL_PLANS = [1, 2, 3, 4, 5, 7, 8];
+
 // Инициализация таблиц
 function initializeTables() {
     for (let i = 1; i <= 8; i++) {
@@ -133,15 +136,15 @@ function initializeTables() {
                 return `
                 <td style="text-align:center; font-weight:600;">${typeof rowIdx === 'number' ? rowIdx + 1 : '-'}</td>
                 <td>${regionCell}</td>
-                <td><input ${num} data-plan="7" data-row="${rr7}" data-col="0"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},0)" title="Добавить примечание">📝</button></td>
-                <td><input ${num} data-plan="7" data-row="${rr7}" data-col="1"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},1)" title="Добавить примечание">📝</button></td>
+                <td><input ${num} data-plan="7" data-row="${rr7}" data-col="0" oninput="calculateTotals(7)"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},0)" title="Добавить примечание">📝</button></td>
+                <td><input ${num} data-plan="7" data-row="${rr7}" data-col="1" oninput="calculateTotals(7)"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},1)" title="Добавить примечание">📝</button></td>
                 <td><input ${num} data-plan="7" data-row="${rr7}" data-col="2" oninput="calculateCoefficient(7,${rr7})"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},2)" title="Добавить примечание">📝</button></td>
                 <td><input ${num} data-plan="7" data-row="${rr7}" data-col="3" oninput="calculateCoefficient(7,${rr7})"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},3)" title="Добавить примечание">📝</button></td>
                 <td><input ${num} data-plan="7" data-row="${rr7}" data-col="4" readonly style="background:#f3f4f6;cursor:not-allowed;"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},4)" title="Добавить примечание">📝</button></td>`;
             }
             const ia = isText ? txt : num;
             const ro = isText ? '' : 'readonly style="background:#f3f4f6;cursor:not-allowed;"';
-            const oi = isText ? '' : `oninput="calculateCoefficient(${i},${typeof rowIdx === 'number' ? rowIdx : 20})"`;
+            const oi = isText ? `oninput="calculateTotals(${i})"` : `oninput="calculateCoefficient(${i},${typeof rowIdx === 'number' ? rowIdx : 20})"`;
             const rr = typeof rowIdx === 'number' ? rowIdx : 20;
             return `
                 <td style="text-align:center; font-weight:600;">${typeof rowIdx === 'number' ? rowIdx + 1 : '-'}</td>
@@ -157,6 +160,20 @@ function initializeTables() {
         html += `<tr style="background:#e0f2fe; font-weight:600;">${makeRow('total', '<strong>Всего</strong>')}</tr>`;
         
         tbody.innerHTML = html;
+
+        // Строка «Всего» — readonly для авто-рассчитываемых планов
+        if (AUTO_TOTAL_PLANS.includes(i)) {
+            const rows = tbody.querySelectorAll('tr');
+            const totalRow = rows[rows.length - 1];
+            if (totalRow) {
+                totalRow.querySelectorAll('input').forEach(inp => {
+                    inp.readOnly = true;
+                    inp.style.background = '#e0f2fe';
+                    inp.style.cursor = 'not-allowed';
+                    inp.removeAttribute('oninput');
+                });
+            }
+        }
     }
 }
 
@@ -269,6 +286,118 @@ function calculateCoefficient(planNum, rowIdx) {
     
     // Округляем до 1 знака после запятой
     coefficientInput.value = coefficient.toFixed(1);
+
+    // Пересчитываем строку «Всего» если план авто-рассчитываемый
+    calculateTotals(planNum);
+}
+
+// Автоматический расчёт строки «Всего»
+// Планы 1,2,4,5: planned=среднее, actual=среднее, coeff=actual/planned*100
+// План 7: kol_del=сумма, planned_qty=сумма, planned_pct=среднее, actual_pct=среднее, coeff=act_pct/plan_pct*100
+function calculateTotals(planNum) {
+    if (!AUTO_TOTAL_PLANS.includes(planNum)) return;
+
+    const tbody = document.getElementById(`plan${planNum}-tbody`);
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length < 2) return;
+
+    const totalRow = rows[rows.length - 1];
+    const dataRows = rows.slice(0, -1);
+    const totalInputs = totalRow.querySelectorAll('input');
+
+    if (planNum === 8) {
+        // План 8 (отображается как 7): формат "X/Y"
+        // Плановый Всего = суммаX / суммаY, Фактический Всего = суммаX / суммаY
+        // Коэффициент = (factX/planX*100) / (factY/planY*100)
+        let pX = 0, pY = 0, aX = 0, aY = 0;
+
+        function parseSlash(val) {
+            if (!val || val.trim() === '') return [0, 0];
+            const parts = val.split('/').map(s => parseFloat(s.trim()) || 0);
+            return [parts[0] || 0, parts[1] || 0];
+        }
+
+        dataRows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            const [px, py] = parseSlash(inputs[0]?.value);
+            const [ax, ay] = parseSlash(inputs[1]?.value);
+            pX += px; pY += py;
+            aX += ax; aY += ay;
+        });
+
+        if (totalInputs[0]) totalInputs[0].value = (pX || pY) ? `${pX}/${pY}` : '';
+        if (totalInputs[1]) totalInputs[1].value = (aX || aY) ? `${aX}/${aY}` : '';
+
+        const cX = pX > 0 ? (aX / pX * 100) : 0;
+        const cY = pY > 0 ? (aY / pY * 100) : 0;
+        if (totalInputs[2]) totalInputs[2].value = (cX || cY) ? `${cX.toFixed(1)}/${cY.toFixed(1)}` : '';
+
+    } else if (planNum === 7) {
+        // Plan 7 (отображается как 6): расширенная структура
+        // col0=kol_del(sum), col1=planned_qty(sum), col2=planned_pct(avg), col3=actual_pct(avg), col4=coeff
+        let sumKD = 0, sumPQ = 0, sumPP = 0, sumAP = 0;
+        let cntPP = 0, cntAP = 0;
+
+        dataRows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            sumKD += parseFloat(inputs[0]?.value) || 0;
+            sumPQ += parseFloat(inputs[1]?.value) || 0;
+            sumPP += parseFloat(inputs[2]?.value) || 0;
+            sumAP += parseFloat(inputs[3]?.value) || 0;
+            if (inputs[2]?.value !== '') cntPP++;
+            if (inputs[3]?.value !== '') cntAP++;
+        });
+
+        if (totalInputs[0]) totalInputs[0].value = sumKD || '';
+        if (totalInputs[1]) totalInputs[1].value = sumPQ || '';
+
+        const avgPP = cntPP > 0 ? sumPP / cntPP : 0;
+        const avgAP = cntAP > 0 ? sumAP / cntAP : 0;
+        if (totalInputs[2]) totalInputs[2].value = avgPP ? avgPP.toFixed(1) : '';
+        if (totalInputs[3]) totalInputs[3].value = avgAP ? avgAP.toFixed(1) : '';
+
+        const coeff = avgPP > 0 ? (avgAP / avgPP) * 100 : 0;
+        if (totalInputs[4]) totalInputs[4].value = coeff > 0 ? (coeff > 100 ? '100.0' : coeff.toFixed(1)) : '';
+
+    } else if (planNum === 3) {
+        // План 3: сумма (не среднее)
+        let sumP = 0, sumA = 0;
+
+        dataRows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            sumP += parseFloat(inputs[0]?.value) || 0;
+            sumA += parseFloat(inputs[1]?.value) || 0;
+        });
+
+        if (totalInputs[0]) totalInputs[0].value = sumP || '';
+        if (totalInputs[1]) totalInputs[1].value = sumA || '';
+
+        const coeff = sumP > 0 ? (sumA / sumP) * 100 : 0;
+        if (totalInputs[2]) totalInputs[2].value = coeff > 0 ? (coeff > 100 ? '100.0' : coeff.toFixed(1)) : '';
+
+    } else {
+        // Планы 1, 2, 4, 5: среднее арифметическое
+        let sumP = 0, sumA = 0, cntP = 0, cntA = 0;
+
+        dataRows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            sumP += parseFloat(inputs[0]?.value) || 0;
+            sumA += parseFloat(inputs[1]?.value) || 0;
+            if (inputs[0]?.value !== '') cntP++;
+            if (inputs[1]?.value !== '') cntA++;
+        });
+
+        const avgP = cntP > 0 ? sumP / cntP : 0;
+        const avgA = cntA > 0 ? sumA / cntA : 0;
+
+        if (totalInputs[0]) totalInputs[0].value = avgP ? avgP.toFixed(1) : '';
+        if (totalInputs[1]) totalInputs[1].value = avgA ? avgA.toFixed(1) : '';
+
+        const coeff = avgP > 0 ? (avgA / avgP) * 100 : 0;
+        if (totalInputs[2]) totalInputs[2].value = coeff > 0 ? (coeff > 100 ? '100.0' : coeff.toFixed(1)) : '';
+    }
 }
 
 // Показать модальное окно для примечания
@@ -401,12 +530,12 @@ async function saveAllPlans() {
         plans[planId] = collectTableData(planId);
     }
     
-    // Собираем даты планов 1 и 2
+    // Собираем даты всех планов
     const planDates = {};
-    const d1 = document.getElementById('plan1-date');
-    const d2 = document.getElementById('plan2-date');
-    if (d1) planDates.plan1 = d1.value;
-    if (d2) planDates.plan2 = d2.value;
+    for (let p = 1; p <= 8; p++) {
+        const el = document.getElementById(`plan${p}-date`);
+        if (el) planDates[`plan${p}`] = el.value;
+    }
 
     try {
         const response = await fetch('/api/plans/save', {
@@ -450,12 +579,12 @@ async function loadPlansFromServer() {
                 }
             }
             
-            // Восстанавливаем даты планов 1 и 2
+            // Восстанавливаем даты всех планов
             if (result.planDates) {
-                const d1 = document.getElementById('plan1-date');
-                const d2 = document.getElementById('plan2-date');
-                if (d1 && result.planDates.plan1) d1.value = result.planDates.plan1;
-                if (d2 && result.planDates.plan2) d2.value = result.planDates.plan2;
+                for (let p = 1; p <= 8; p++) {
+                    const el = document.getElementById(`plan${p}-date`);
+                    if (el && result.planDates[`plan${p}`]) el.value = result.planDates[`plan${p}`];
+                }
             }
 
             // Восстанавливаем примечания
@@ -476,6 +605,8 @@ async function loadPlansFromServer() {
     } catch (error) {
         console.error('Ошибка загрузки:', error);
     } finally {
+        // Пересчитываем «Всего» для авто-рассчитываемых планов
+        AUTO_TOTAL_PLANS.forEach(p => calculateTotals(p));
         // После загрузки данных применяем ограничения (инпуты пересозданы)
         applyColumnRestrictions();
     }
