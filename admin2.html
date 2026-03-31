@@ -189,6 +189,7 @@
         let currentTab = 1;
         let allPlans = null;
         let allNotes = {};
+        let allPlanDates = {};
         let currentIsAdmin = false; // только admin (не planner) видит управление пользователями
 
         async function checkAdminAccess() {
@@ -340,12 +341,23 @@
             const data = historyPlans[`plan${planNumber}`];
             let html = `<h2 style="margin-bottom:0.5rem;">План № ${displayNum}</h2>`;
             html += `<p style="color:#64748b; margin-bottom:1.5rem; font-size:0.95rem;">${PLAN_TITLES[planNumber] || ''}</p>`;
+            const isHistP7 = (planNumber === 7);
             html += '<table class="report-table"><thead><tr>';
             html += '<th style="width:50px;">№</th><th>Территориальный департамент</th>';
-            html += '<th>Плановый показатель</th><th>Фактический показатель</th><th>Коэф. исполнения</th>';
-            html += '</tr></thead><tbody>';
+            if (isHistP7) {
+                html += '<th>Кол-во назн. дел</th>';
+                html += '<th>Плановый показатель (кол-во)</th>';
+                html += '<th>Плановый показатель (%)</th>';
+                html += '<th>Фактический показатель (%)</th>';
+            } else {
+                html += '<th>Плановый показатель</th><th>Фактический показатель</th>';
+            }
+            html += `<th id="coeff-th-hist" style="cursor:pointer; user-select:none;" title="Нажмите для сортировки" onclick="sortAdminPlan('hist')">Коэф. исполнения</th>`;
+            html += '</tr></thead><tbody id="history-plan-tbody">';
             data.forEach((row, rowIndex) => {
-                html += '<tr>';
+                const isTotal = row[0] === '-' || String(row[1]).trim() === 'Всего';
+                const coeffVal = isHistP7 ? (row[6] || '') : (row[4] || '');
+                html += `<tr data-total="${isTotal}" data-coeff="${coeffVal}">`;
                 row.forEach((cell, colIndex) => {
                     if (colIndex === 0) html += `<td style="text-align:center; font-weight:600;">${cell}</td>`;
                     else if (colIndex === 1) html += `<td><strong>${cell}</strong></td>`;
@@ -577,6 +589,7 @@
                 if (result.success && result.found) {
                     allPlans = result.plans;
                     allNotes = result.notes || {};
+                    allPlanDates = result.planDates || allNotes.__planDates__ || {};
                     
                     // Заполняем дропдаун регионов
                     populateRegionSelect();
@@ -655,31 +668,47 @@
             
             const displayNum = PLAN_DISPLAY_NUMS[planNumber] || planNumber;
             let html = '<div style="background: white; padding: 2rem; border-radius: 8px;">';
-            html += `<h2 style="margin-bottom: 1rem;">План № ${displayNum}</h2>`;
-            html += `<p style="color: #64748b; margin-bottom: 2rem;">${PLAN_TITLES[planNumber] || ''}</p>`;
+            html += `<h2 style="margin-bottom: 0.5rem;">План № ${displayNum}</h2>`;
+            html += `<p style="color: #64748b; margin-bottom: 0.5rem;">${PLAN_TITLES[planNumber] || ''}</p>`;
+            const dateVal = allPlanDates[`plan${planNumber}`];
+            if (dateVal) {
+                html += `<p style="color:#475569; margin-bottom:1.5rem; font-weight:600;">Дата: ${dateVal}</p>`;
+            } else {
+                html += '<div style="margin-bottom:1.5rem;"></div>';
+            }
             html += '<table class="report-table"><thead><tr>';
+            // plan7: [num, region, kol_del, planned_qty, planned_pct, actual_pct, coeff] (7 эл.)
+            // остальные: [num, region, planned, actual, coeff] (5 эл.)
+            const isP7 = (planNumber === 7);
             html += '<th style="width: 50px;">№</th>';
             html += '<th>Территориальный департамент</th>';
-            html += '<th>Плановый показатель</th>';
-            html += '<th>Фактический показатель</th>';
-            html += '<th>Коэффициент исполнения</th>';
-            html += '</tr></thead><tbody>';
+            if (isP7) {
+                html += '<th>Кол-во назн. дел</th>';
+                html += '<th>Плановый показатель (кол-во)</th>';
+                html += '<th>Плановый показатель (%)</th>';
+                html += '<th>Фактический показатель (%)</th>';
+            } else {
+                html += '<th>Плановый показатель</th>';
+                html += '<th>Фактический показатель</th>';
+            }
+            html += '<th id="coeff-th-main" style="cursor:pointer; user-select:none;" title="Нажмите для сортировки" onclick="sortAdminPlan(\'main\')">Коэффициент исполнения</th>';
+            html += '</tr></thead><tbody id="admin-plan-tbody">';
 
             data.forEach((row, rowIndex) => {
-                html += '<tr>';
+                const isTotal = row[0] === '-' || String(row[1]).trim() === 'Всего';
+                const coeffVal = isP7 ? (row[6] || '') : (row[4] || '');
+                html += `<tr data-total="${isTotal}" data-coeff="${coeffVal}">`;
                 row.forEach((cell, colIndex) => {
                     if (colIndex === 0) {
                         html += `<td style="text-align: center; font-weight: 600;">${cell}</td>`;
                     } else if (colIndex === 1) {
                         html += `<td><strong>${cell}</strong></td>`;
                     } else {
-                        // Проверяем есть ли примечание
                         const noteKey = `plan${planNumber}_${rowIndex}_${colIndex - 2}`;
                         const hasNote = allNotes[noteKey];
                         const cellStyle = hasNote ? 'background: #fef3c7; cursor: pointer;' : '';
                         const noteIcon = hasNote ? ' 📝' : '';
                         const clickHandler = hasNote ? `onclick="showNote('${noteKey}')"` : '';
-                        
                         html += `<td style="text-align: center; ${cellStyle}" ${clickHandler} title="${hasNote ? 'Кликните для просмотра примечания' : ''}">${cell || '—'}${noteIcon}</td>`;
                     }
                 });
@@ -703,6 +732,56 @@
                     </div>
                 `;
                 document.body.appendChild(modal);
+            }
+        }
+
+        // =====================================================================
+        // СОРТИРОВКА ПО КОЭФФИЦИЕНТУ ИСПОЛНЕНИЯ
+        // =====================================================================
+
+        const adminSortState = {}; // ключ: 'main' | 'hist'
+
+        function parseCoeffAdm(val) {
+            if (!val || val === '—') return 0;
+            const s = String(val).replace(/📝/g, '').trim();
+            if (s.includes('/')) {
+                const [a, b] = s.split('/').map(Number);
+                return b ? a / b : 0;
+            }
+            return parseFloat(s) || 0;
+        }
+
+        function sortAdminPlan(key) {
+            const tbodyId = key === 'hist' ? 'history-plan-tbody' : 'admin-plan-tbody';
+            const thId    = key === 'hist' ? 'coeff-th-hist' : 'coeff-th-main';
+            const tbody = document.getElementById(tbodyId);
+            const th    = document.getElementById(thId);
+            if (!tbody) return;
+
+            const next = adminSortState[key] === 'desc' ? 'asc' : 'desc';
+            adminSortState[key] = next;
+
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const totalRows = rows.filter(r => r.dataset.total === 'true');
+            const dataRows  = rows.filter(r => r.dataset.total !== 'true');
+
+            dataRows.sort((a, b) => {
+                const av = parseCoeffAdm(a.dataset.coeff);
+                const bv = parseCoeffAdm(b.dataset.coeff);
+                return next === 'desc' ? bv - av : av - bv;
+            });
+
+            dataRows.forEach((r, i) => {
+                tbody.appendChild(r);
+                const numCell = r.querySelector('td:first-child');
+                if (numCell) numCell.textContent = i + 1;
+            });
+            totalRows.forEach(r => tbody.appendChild(r));
+
+            if (th) {
+                const base = th.dataset.baseText || th.textContent.replace(/[\s▲▼]+$/, '').trim();
+                th.dataset.baseText = base;
+                th.textContent = base + (next === 'desc' ? ' ▼' : ' ▲');
             }
         }
 

@@ -991,7 +991,7 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) =
 app.post('/api/plans/save', authenticateToken, (req, res) => {
     // planner может сохранять плановые значения
     try {
-        const { plans, notes } = req.body;
+        const { plans, notes, planDates } = req.body;
         if (!plans) return res.status(400).json({ error: 'Отсутствуют данные планов' });
 
         const db = readDB();
@@ -1040,11 +1040,18 @@ app.post('/api/plans/save', authenticateToken, (req, res) => {
             console.log(`📝 Обновлены все планы от admin (${req.user.username})`);
         }
 
+        // planDates обновляется только админом
+        let sharedPlanDates = (sharedDoc && sharedDoc.planDates) ? { ...sharedDoc.planDates } : {};
+        if (planDates && regionIndex === undefined) {
+            Object.assign(sharedPlanDates, planDates);
+        }
+
         const updatedDoc = {
             id: sharedDoc ? sharedDoc.id : generateId(),
             type: 'plans',
             plans: sharedPlans,
             notes: sharedNotes,
+            planDates: sharedPlanDates,
             organization: adminUser.organization || '',
             submittedAt: new Date().toISOString(),
             uploadedAt: new Date().toISOString(),
@@ -1096,6 +1103,7 @@ app.get('/api/plans/load', authenticateToken, (req, res) => {
             found: true,
             plans: document.plans,
             notes: document.notes || {},
+            planDates: document.planDates || {},
             lastSaved: document.uploadedAt
         });
 
@@ -1134,6 +1142,7 @@ app.get('/api/plans/all', authenticateToken, (req, res) => {
             success: true, found: true,
             plans: document.plans,
             notes: document.notes || {},
+            planDates: document.planDates || {},
             lastSaved: document.uploadedAt
         });
 
@@ -1144,16 +1153,100 @@ app.get('/api/plans/all', authenticateToken, (req, res) => {
 });
 
 /**
+ * Генерирует XML таблицы Word для план 7 (7 столбцов).
+ */
+function buildPlan7TableXml(planData) {
+    const esc = s => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    const colW = [400, 2700, 1300, 1300, 1300, 1400, 1200];
+    const totalW = colW.reduce((a, b) => a + b, 0);
+
+    const tcProp = (w, fill) => {
+        const shade = fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : '';
+        return `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${shade}
+          <w:tcBorders>
+            <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          </w:tcBorders>
+        </w:tcPr>`;
+    };
+
+    const cell = (text, w, { bold = false, center = true, fill = null } = {}) => {
+        const jc = center ? '<w:jc w:val="center"/>' : '<w:jc w:val="left"/>';
+        const rpr = bold ? '<w:rPr><w:b/><w:bCs/></w:rPr>' : '<w:rPr/>';
+        return `<w:tc>${tcProp(w, fill)}
+          <w:p><w:pPr>${jc}<w:spacing w:before="60" w:after="60"/>
+          </w:pPr><w:r>${rpr}<w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p>
+        </w:tc>`;
+    };
+
+    const headers = [
+        '№',
+        'Территориальные департаменты КРиКСЗН',
+        'Кол-во назн. дел (от кол-ва за пред. месяц)',
+        'Плановый показатель (кол-во)',
+        'Плановый показатель (%)',
+        'Фактический показатель (% проверенных)',
+        'Коэффициент исполнения'
+    ];
+
+    const headerRow = '<w:tr>' + headers.map((h, i) =>
+        cell(h, colW[i], { bold: true, center: true, fill: 'D9E1F2' })
+    ).join('') + '</w:tr>';
+
+    let dataRows = '';
+    planData.forEach((row, idx) => {
+        const isTotal = row[0] === '-' || String(row[1] || '').trim() === 'Всего';
+        const fill = isTotal ? 'BDD7EE' : null;
+        const num = isTotal ? '-' : String(idx + 1);
+        dataRows += '<w:tr>'
+            + cell(num,    colW[0], { bold: isTotal, center: true, fill })
+            + cell(row[1], colW[1], { bold: isTotal, center: false, fill })
+            + cell(row[2], colW[2], { center: true, fill })
+            + cell(row[3], colW[3], { center: true, fill })
+            + cell(row[4], colW[4], { center: true, fill })
+            + cell(row[5], colW[5], { center: true, fill })
+            + cell(row[6], colW[6], { center: true, fill })
+            + '</w:tr>';
+    });
+
+    const gridCols = colW.map(w => `<w:gridCol w:w="${w}"/>`).join('');
+
+    return `<w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="${totalW}" w:type="dxa"/>
+        <w:tblBorders>
+          <w:top    w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:left   w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:right  w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+        </w:tblBorders>
+        <w:tblLook w:val="04A0"/>
+      </w:tblPr>
+      <w:tblGrid>${gridCols}</w:tblGrid>
+      ${headerRow}
+      ${dataRows}
+    </w:tbl>`;
+}
+
+/**
  * POST /api/plans/download
  * Генерация и скачивание DOCX документа с заполненными данными
  */
 app.post('/api/plans/download', authenticateToken, async (req, res) => {
     try {
-        const { planNumber, planData } = req.body;
+        const { planNumber, planData, displayNumber, planDate } = req.body;
         
         if (!planNumber || !planData) {
             return res.status(400).json({ error: 'Отсутствуют данные для генерации документа' });
         }
+        const fileNum = displayNumber || planNumber;
         
         const PizZip = require('pizzip');
         
@@ -1170,9 +1263,15 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
         const now = new Date();
         const monthNames = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 
                            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-        const day = now.getDate();
-        const month = monthNames[now.getMonth()];
-        const year = now.getFullYear();
+        // Если дата задана пользователем (для планов 1 и 2), используем её
+        let day, month, year;
+        if (planDate) {
+            day = ''; month = ''; year = '';
+        } else {
+            day = now.getDate();
+            month = monthNames[now.getMonth()];
+            year = now.getFullYear();
+        }
         
         const planTitles = {
             1: 'Реализация Дорожной карты партии «Amanat» (п.26) по обеспечению доступности для лиц с инвалидностью',
@@ -1196,43 +1295,54 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
             8: 'План № 8'
         };
         
-        // Заменяем простые переменные в тексте
-        docXml = docXml.replace(/\{day\}/g, String(day));
-        docXml = docXml.replace(/\{month\}/g, month);
-        docXml = docXml.replace(/\{year\}/g, String(year));
+        if (planDate) {
+            // Пользовательская дата — заменяем {day} {month} {year} на полную строку даты
+            docXml = docXml.replace(/\{day\}\s*\{month\}\s*\{year\}\s*года?/g, planDate);
+            docXml = docXml.replace(/\{day\}/g, '');
+            docXml = docXml.replace(/\{month\}/g, planDate);
+            docXml = docXml.replace(/\{year\}/g, '');
+        } else {
+            docXml = docXml.replace(/\{day\}/g, String(day));
+            docXml = docXml.replace(/\{month\}/g, month);
+            docXml = docXml.replace(/\{year\}/g, String(year));
+        }
         docXml = docXml.replace(/\{planTitle\}/g, planTitles[planNumber] || '');
-        
-        // Находим строку таблицы (w:tr) которая содержит {#rows}
-        // Структура: <w:tr>...<w:t>{#rows}{num}{/rows}</w:t>...<w:t>{#rows}{region}{/rows}</w:t>...</w:tr>
-        const templateRowMatch = docXml.match(/<w:tr>(?:(?!<w:tr>)[\s\S])*?\{#rows\}[\s\S]*?<\/w:tr>/);
-        
-        if (templateRowMatch) {
-            const templateRow = templateRowMatch[0];
-            
-            // Очищаем шаблон строки от маркеров цикла
-            const cleanRow = templateRow.replace(/\{#rows\}/g, '').replace(/\{\/rows\}/g, '');
-            
-            const dataRows = planData.slice(0, -1);
-            const totalRow = planData[planData.length - 1];
-            
-            let generatedRows = '';
-            dataRows.forEach((row, index) => {
-                let newRow = cleanRow;
-                newRow = newRow.replace(/\{num\}/g, String(index + 1));
-                newRow = newRow.replace(/\{region\}/g, row[1] || '');
-                newRow = newRow.replace(/\{planned\}/g, row[2] || '');
-                newRow = newRow.replace(/\{actual\}/g, row[3] || '');
-                newRow = newRow.replace(/\{coefficient\}/g, row[4] || '');
-                generatedRows += newRow;
-            });
-            
-            // Заменяем шаблонную строку на все сгенерированные строки
-            docXml = docXml.replace(templateRow, generatedRows);
-            
-            // Заменяем данные строки "Всего"
-            docXml = docXml.replace(/\{totalPlanned\}/g, totalRow[2] || '');
-            docXml = docXml.replace(/\{totalActual\}/g, totalRow[3] || '');
-            docXml = docXml.replace(/\{totalCoefficient\}/g, totalRow[4] || '');
+
+        if (planNumber === 7) {
+            // Для план 7 — заменяем всю таблицу целиком с правильными заголовками
+            const newTableXml = buildPlan7TableXml(planData);
+            const tblMatch = docXml.match(/<w:tbl[\s\S]*?<\/w:tbl>/);
+            if (tblMatch) {
+                docXml = docXml.replace(tblMatch[0], newTableXml);
+            }
+            docXml = docXml.replace(/\{#rows\}[\s\S]*?\{\/rows\}/g, '');
+            docXml = docXml.replace(/\{totalPlanned\}|\{totalActual\}|\{totalCoefficient\}/g, '');
+        } else {
+            const templateRowMatch = docXml.match(/<w:tr>(?:(?!<w:tr>)[\s\S])*?\{#rows\}[\s\S]*?<\/w:tr>/);
+
+            if (templateRowMatch) {
+                const templateRow = templateRowMatch[0];
+                const cleanRow = templateRow.replace(/\{#rows\}/g, '').replace(/\{\/rows\}/g, '');
+
+                const dataRows = planData.slice(0, -1);
+                const totalRow = planData[planData.length - 1];
+
+                let generatedRows = '';
+                dataRows.forEach((row, index) => {
+                    let newRow = cleanRow;
+                    newRow = newRow.replace(/\{num\}/g, String(index + 1));
+                    newRow = newRow.replace(/\{region\}/g, row[1] || '');
+                    newRow = newRow.replace(/\{planned\}/g, row[2] || '');
+                    newRow = newRow.replace(/\{actual\}/g, row[3] || '');
+                    newRow = newRow.replace(/\{coefficient\}/g, row[4] || '');
+                    generatedRows += newRow;
+                });
+
+                docXml = docXml.replace(templateRow, generatedRows);
+                docXml = docXml.replace(/\{totalPlanned\}/g, totalRow[2] || '');
+                docXml = docXml.replace(/\{totalActual\}/g, totalRow[3] || '');
+                docXml = docXml.replace(/\{totalCoefficient\}/g, totalRow[4] || '');
+            }
         }
         
         zip.file('word/document.xml', docXml);
@@ -1242,13 +1352,14 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
             compression: 'DEFLATE'
         });
         
-        const fileName = `${planFileNames[planNumber]}.docx`;
+        const fileName = `План № ${fileNum}.docx`;
         
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+        const encodedName = encodeURIComponent(fileName);
+        res.setHeader('Content-Disposition', `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
         res.send(buf);
         
-        console.log(`📥 Документ План ${planNumber} сгенерирован для пользователя ${req.user.username}`);
+        console.log(`📥 Документ План ${fileNum} (internal: ${planNumber}) для ${req.user.username}`);
         
     } catch (error) {
         console.error('Ошибка генерации документа:', error);
