@@ -1053,14 +1053,9 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
         const now = new Date();
         const monthNames = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 
                            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-        let day, month, year;
-        if (planDate) {
-            day = ''; month = ''; year = '';
-        } else {
-            day = now.getDate();
-            month = monthNames[now.getMonth()];
-            year = now.getFullYear();
-        }
+        const day = now.getDate();
+        const month = monthNames[now.getMonth()];
+        const year = now.getFullYear();
         
         const planTitles = {
             1: 'Реализация Дорожной карты партии «Amanat» (п.26) по обеспечению доступности для лиц с инвалидностью',
@@ -1078,11 +1073,17 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
             5: 'План № 5', 6: 'План № 6', 7: 'План № 7', 8: 'План № 8'
         };
         
+        // Убираем «» перед датой (все варианты: слитно, с пробелом, разнесённые по тегам)
+        docXml = docXml.replace(/«\s*»/g, '');
+        docXml = docXml.replace(/«(<\/w:t><\/w:r><w:r[^>]*><w:t[^>]*>|\s*)»/g, '');
+        docXml = docXml.replace(/«/g, '').replace(/»/g, '');
+
         if (planDate) {
-            docXml = docXml.replace(/\{day\}\s*\{month\}\s*\{year\}\s*года?/g, planDate);
+            // Убираем "года" из введённой даты, чтобы шаблон не дублировал
+            const cleanDate = planDate.replace(/\s*года?\s*$/i, '').trim();
             docXml = docXml.replace(/\{day\}/g, '');
-            docXml = docXml.replace(/\{month\}/g, planDate);
-            docXml = docXml.replace(/\{year\}/g, '');
+            docXml = docXml.replace(/\{month\}/g, '');
+            docXml = docXml.replace(/\{year\}/g, cleanDate);
         } else {
             docXml = docXml.replace(/\{day\}/g, String(day));
             docXml = docXml.replace(/\{month\}/g, month);

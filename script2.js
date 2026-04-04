@@ -116,6 +116,23 @@ const notes = {};
 // Планы, для которых строка «Всего» рассчитывается автоматически
 const AUTO_TOTAL_PLANS = [1, 2, 3, 4, 5, 7, 8];
 
+// Текущая дата по Астане (UTC+5) в формате "6 марта 2026"
+function getCurrentDateAstana() {
+    const monthNames = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+                        'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Almaty' }));
+    return `${now.getDate()} ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+}
+
+// Устанавливаем текущую дату для всех планов (всегда обновляем)
+function setDefaultDates() {
+    const today = getCurrentDateAstana();
+    for (let p = 1; p <= 8; p++) {
+        const el = document.getElementById(`plan${p}-date`);
+        if (el) el.value = today;
+    }
+}
+
 // Инициализация таблиц
 function initializeTables() {
     for (let i = 1; i <= 8; i++) {
@@ -579,13 +596,8 @@ async function loadPlansFromServer() {
                 }
             }
             
-            // Восстанавливаем даты всех планов
-            if (result.planDates) {
-                for (let p = 1; p <= 8; p++) {
-                    const el = document.getElementById(`plan${p}-date`);
-                    if (el && result.planDates[`plan${p}`]) el.value = result.planDates[`plan${p}`];
-                }
-            }
+            // Ставим актуальную дату (текущий день по Астане)
+            setDefaultDates();
 
             // Восстанавливаем примечания
             if (result.notes) {
