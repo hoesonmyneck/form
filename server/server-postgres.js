@@ -270,18 +270,18 @@ app.post('/api/forms/save', authenticateToken, upload.any(), async (req, res) =>
             return res.status(400).json({ error: 'Неверный формат данных формы' });
         }
 
-        // Обрабатываем прикреплённые файлы
-        const attachedFiles = {};
+        // Обрабатываем НОВЫЕ прикреплённые файлы (только что загруженные)
+        const newUploadedFiles = {};
         if (req.files && req.files.length > 0) {
             req.files.forEach(file => {
                 const match = file.fieldname.match(/files_(.+)/);
                 if (match) {
                     const section = match[1];
-                    if (!attachedFiles[section]) {
-                        attachedFiles[section] = [];
+                    if (!newUploadedFiles[section]) {
+                        newUploadedFiles[section] = [];
                     }
                     const decodedOriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-                    attachedFiles[section].push({
+                    newUploadedFiles[section].push({
                         originalName: decodedOriginalName,
                         filename: file.filename,
                         size: file.size,
@@ -305,7 +305,8 @@ app.post('/api/forms/save', authenticateToken, upload.any(), async (req, res) =>
             }
         }
 
-        // Обрабатываем retained-файлы (уже существуют на диске, просто регистрируем снова)
+        // Обрабатываем retained-файлы (уже на диске, нужны только для новых записей)
+        const retainedFiles = {};
         for (const key in req.body) {
             if (key.startsWith('retained_')) {
                 const section = key.replace('retained_', '');
@@ -315,8 +316,7 @@ app.post('/api/forms/save', authenticateToken, upload.any(), async (req, res) =>
                         return f.filename && fs.existsSync(path.join(UPLOADS_DIR, f.filename));
                     });
                     if (existing.length > 0) {
-                        if (!attachedFiles[section]) attachedFiles[section] = [];
-                        attachedFiles[section].push(...existing);
+                        retainedFiles[section] = existing;
                     }
                 } catch (e) {
                     console.warn('Ошибка парсинга retained файлов:', e);
@@ -331,12 +331,12 @@ app.post('/api/forms/save', authenticateToken, upload.any(), async (req, res) =>
         );
 
         let docId;
-        let finalAttachedFiles = attachedFiles;
+        let finalAttachedFiles = {};
 
         if (existingResult.rows.length > 0) {
             docId = existingResult.rows[0].id;
             const oldFiles = existingResult.rows[0].attached_files || {};
-            finalAttachedFiles = { ...oldFiles };
+            finalAttachedFiles = JSON.parse(JSON.stringify(oldFiles));
             
             // Удаляем файлы
             for (const section in filesToDelete) {
@@ -358,12 +358,12 @@ app.post('/api/forms/save', authenticateToken, upload.any(), async (req, res) =>
                 }
             }
             
-            // Добавляем новые файлы
-            for (const section in attachedFiles) {
+            // Добавляем ТОЛЬКО новые загруженные файлы (retained уже есть в oldFiles)
+            for (const section in newUploadedFiles) {
                 if (!finalAttachedFiles[section]) {
                     finalAttachedFiles[section] = [];
                 }
-                finalAttachedFiles[section].push(...attachedFiles[section]);
+                finalAttachedFiles[section].push(...newUploadedFiles[section]);
             }
 
             await pool.query(
@@ -380,6 +380,17 @@ app.post('/api/forms/save', authenticateToken, upload.any(), async (req, res) =>
             console.log(`📝 Обновлена форма №${formNumber} (${req.user.username})`);
         } else {
             docId = generateId();
+
+            // Для новой записи объединяем новые загрузки и retained
+            for (const section in newUploadedFiles) {
+                finalAttachedFiles[section] = [...newUploadedFiles[section]];
+            }
+            for (const section in retainedFiles) {
+                if (!finalAttachedFiles[section]) {
+                    finalAttachedFiles[section] = [];
+                }
+                finalAttachedFiles[section].push(...retainedFiles[section]);
+            }
             
             await pool.query(
                 `INSERT INTO documents (id, user_id, type, form_number, form_data, attached_files, organization, submitted_at, uploaded_at, username, user_full_name, user_email, user_organization)

@@ -321,20 +321,18 @@ app.post('/api/forms/save', authenticateToken, upload.any(), (req, res) => {
                    doc.type === 'json'
         );
 
-        // Обрабатываем прикреплённые файлы
-        const attachedFiles = {};
+        // Обрабатываем НОВЫЕ прикреплённые файлы (только что загруженные)
+        const newUploadedFiles = {};
         if (req.files && req.files.length > 0) {
             req.files.forEach(file => {
-                // Извлекаем section из fieldname (например: files_form1-plaintiffs)
                 const match = file.fieldname.match(/files_(.+)/);
                 if (match) {
                     const section = match[1];
-                    if (!attachedFiles[section]) {
-                        attachedFiles[section] = [];
+                    if (!newUploadedFiles[section]) {
+                        newUploadedFiles[section] = [];
                     }
-                    // Декодируем имя файла из latin1 в UTF-8
                     const decodedOriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-                    attachedFiles[section].push({
+                    newUploadedFiles[section].push({
                         originalName: decodedOriginalName,
                         filename: file.filename,
                         size: file.size,
@@ -358,7 +356,8 @@ app.post('/api/forms/save', authenticateToken, upload.any(), (req, res) => {
             }
         }
 
-        // Обрабатываем retained-файлы (уже на диске, просто регистрируем снова)
+        // Обрабатываем retained-файлы (уже на диске, нужны только для новых записей)
+        const retainedFiles = {};
         for (const key in req.body) {
             if (key.startsWith('retained_')) {
                 const section = key.replace('retained_', '');
@@ -368,12 +367,60 @@ app.post('/api/forms/save', authenticateToken, upload.any(), (req, res) => {
                         return f.filename && fs.existsSync(path.join(UPLOADS_DIR, f.filename));
                     });
                     if (existing.length > 0) {
-                        if (!attachedFiles[section]) attachedFiles[section] = [];
-                        attachedFiles[section].push(...existing);
+                        retainedFiles[section] = existing;
                     }
                 } catch (e) {
                     console.warn('Ошибка парсинга retained файлов:', e);
                 }
+            }
+        }
+
+        // Собираем файлы для документа в зависимости от того, новый он или обновляемый
+        let finalAttachedFiles = {};
+
+        if (existingIndex >= 0) {
+            // ОБНОВЛЕНИЕ: берём старые файлы из базы
+            const oldFiles = db.documents[existingIndex].attachedFiles || {};
+            finalAttachedFiles = JSON.parse(JSON.stringify(oldFiles));
+            
+            // Удаляем файлы помеченные на удаление
+            for (const section in filesToDelete) {
+                const deleteList = filesToDelete[section] || [];
+                if (finalAttachedFiles[section]) {
+                    finalAttachedFiles[section] = finalAttachedFiles[section].filter(file => {
+                        const shouldDelete = deleteList.includes(file.filename);
+                        if (shouldDelete) {
+                            const filePath = path.join(UPLOADS_DIR, file.filename);
+                            if (fs.existsSync(filePath)) {
+                                fs.unlinkSync(filePath);
+                                console.log(`🗑️ Удален файл: ${file.filename}`);
+                            }
+                        }
+                        return !shouldDelete;
+                    });
+                    if (finalAttachedFiles[section].length === 0) {
+                        delete finalAttachedFiles[section];
+                    }
+                }
+            }
+            
+            // Добавляем ТОЛЬКО новые загруженные файлы (retained уже есть в oldFiles)
+            for (const section in newUploadedFiles) {
+                if (!finalAttachedFiles[section]) {
+                    finalAttachedFiles[section] = [];
+                }
+                finalAttachedFiles[section].push(...newUploadedFiles[section]);
+            }
+        } else {
+            // НОВАЯ ЗАПИСЬ: объединяем новые загрузки и retained
+            for (const section in newUploadedFiles) {
+                finalAttachedFiles[section] = [...newUploadedFiles[section]];
+            }
+            for (const section in retainedFiles) {
+                if (!finalAttachedFiles[section]) {
+                    finalAttachedFiles[section] = [];
+                }
+                finalAttachedFiles[section].push(...retainedFiles[section]);
             }
         }
 
@@ -382,7 +429,7 @@ app.post('/api/forms/save', authenticateToken, upload.any(), (req, res) => {
             type: 'json',
             formNumber: formNumber,
             formData: parsedFormData,
-            attachedFiles: attachedFiles, // Добавляем файлы
+            attachedFiles: finalAttachedFiles,
             organization: req.user.organization || 'Не указано',
             submittedAt: new Date().toISOString(),
             uploadedAt: new Date().toISOString(),
@@ -394,41 +441,6 @@ app.post('/api/forms/save', authenticateToken, upload.any(), (req, res) => {
         };
 
         if (existingIndex >= 0) {
-            // Объединяем файлы со старыми (если есть)
-            const oldFiles = db.documents[existingIndex].attachedFiles || {};
-            document.attachedFiles = { ...oldFiles };
-            
-            // Удаляем файлы помеченные на удаление
-            for (const section in filesToDelete) {
-                const deleteList = filesToDelete[section] || [];
-                if (document.attachedFiles[section]) {
-                    document.attachedFiles[section] = document.attachedFiles[section].filter(file => {
-                        const shouldDelete = deleteList.includes(file.filename);
-                        if (shouldDelete) {
-                            // Удаляем физический файл
-                            const filePath = path.join(UPLOADS_DIR, file.filename);
-                            if (fs.existsSync(filePath)) {
-                                fs.unlinkSync(filePath);
-                                console.log(`🗑️ Удален файл: ${file.filename}`);
-                            }
-                        }
-                        return !shouldDelete;
-                    });
-                    // Удаляем пустые секции
-                    if (document.attachedFiles[section].length === 0) {
-                        delete document.attachedFiles[section];
-                    }
-                }
-            }
-            
-            // Добавляем новые файлы
-            for (const section in attachedFiles) {
-                if (!document.attachedFiles[section]) {
-                    document.attachedFiles[section] = [];
-                }
-                document.attachedFiles[section].push(...attachedFiles[section]);
-            }
-            
             db.documents[existingIndex] = document;
             console.log(`📝 Обновлена форма №${formNumber} (Пользователь: ${req.user.username}, Новых файлов: ${req.files?.length || 0}, Удалено: ${Object.values(filesToDelete).flat().length})`);
         } else {
