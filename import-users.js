@@ -66,6 +66,33 @@ const standardExtraUsers = [
         role: 'user',
         formType: 'standard',
     },
+    {
+        id: 'mtszn001',
+        username: 'mtszn_kriksszn',
+        password: 'kriksszn123',
+        fullName: 'Комитет регулирования и контроля МТСЗН',
+        organization: 'РГУ «Комитет регулирования и контроля в сфере социальной защиты населения Министерства труда и социальной защиты населения Республики Казахстан»',
+        role: 'user',
+        formType: 'standard',
+    },
+    {
+        id: 'mtszn002',
+        username: 'mtszn_kgt',
+        password: 'kgt123',
+        fullName: 'Комитет гос инспекции труда МТСЗН',
+        organization: 'РГУ «Комитет государственной инспекции труда Министерства труда и социальной защиты населения Республики Казахстан»',
+        role: 'user',
+        formType: 'standard',
+    },
+    {
+        id: 'mtszn003',
+        username: 'mtszn_mig',
+        password: 'mig123',
+        fullName: 'Комитет по миграции МТСЗН',
+        organization: 'РГУ «Комитет по миграции Министерства труда и социальной защиты населения Республики Казахстан»',
+        role: 'user',
+        formType: 'standard',
+    },
 ];
 
 const plansUsers = [

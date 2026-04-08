@@ -117,6 +117,8 @@ function logout() {
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
         localStorage.removeItem('formsRetainedState');
+        localStorage.removeItem('mtszn_forms_data');
+        localStorage.removeItem('mtszn_forms_timestamp');
     }
     
     fetch('/api/auth/logout', {
