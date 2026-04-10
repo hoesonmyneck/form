@@ -2,7 +2,7 @@
 let userRegionIndex = null;
 let userIsAdmin   = false;
 let userIsPlanner = false;
-let currentUserRole = null; // 'admin' | 'planner' | 'user' | 'plan_only' | 'viewer'
+let currentUserRole = null; // 'admin' | 'planner' | 'user' | 'plan_only' | 'viewer' | 'viewer_p7'
 
 // Список регионов
 const REGIONS = [
@@ -215,8 +215,9 @@ function applyRegionalFilter() {
 // user       → только col 1 (фактический) своей строки
 // plan_only  → только col 0 (плановый), все строки
 // viewer     → ничего не редактирует
+// viewer_p7  → viewer для всех планов, кроме plan8 (отображ. план 7) — полный доступ
 function applyColumnRestrictions() {
-    if (userIsAdmin || userIsPlanner) return; // Нет ограничений
+    if (userIsAdmin || userIsPlanner) return;
 
     const role = currentUserRole;
 
@@ -224,41 +225,37 @@ function applyColumnRestrictions() {
         const tbody = document.getElementById(`plan${planNum}-tbody`);
         if (!tbody) continue;
 
+        // viewer_p7: план 8 (отображаемый как 7) — полный доступ, остальные — viewer
+        if (role === 'viewer_p7' && planNum === 8) continue;
+
         tbody.querySelectorAll('tr').forEach((row) => {
             const inputs = row.querySelectorAll('input');
-            // plan7: inputs[0]=kol_del, inputs[1]=planned_qty, inputs[2]=planned_pct,
-            //        inputs[3]=actual_pct, inputs[4]=coeff(readonly)
-            // others: inputs[0]=planned, inputs[1]=actual, inputs[2]=coeff(readonly)
             const isP7 = (planNum === 7);
 
-            if (role === 'viewer') {
-                // Блокируем все редактируемые поля
+            if (role === 'viewer' || role === 'viewer_p7') {
                 const editCount = isP7 ? 4 : 2;
                 for (let k = 0; k < editCount; k++) {
                     if (inputs[k]) lockInput(inputs[k]);
                 }
             } else if (role === 'plan_only') {
-                // Только плановые: для plan7 — col1(qty) и col2(pct), col0 и col3 блокируем
                 if (isP7) {
-                    if (inputs[0]) lockInput(inputs[0]); // kol_del
-                    if (inputs[3]) lockInput(inputs[3]); // actual_pct
+                    if (inputs[0]) lockInput(inputs[0]);
+                    if (inputs[3]) lockInput(inputs[3]);
                 } else {
-                    if (inputs[1]) lockInput(inputs[1]); // actual
+                    if (inputs[1]) lockInput(inputs[1]);
                 }
             } else if (userRegionIndex !== null) {
-                // Региональный: только фактический (inputs[3] для plan7, inputs[1] иначе)
                 if (isP7) {
-                    if (inputs[0]) lockInput(inputs[0]); // kol_del
-                    if (inputs[1]) lockInput(inputs[1]); // planned_qty
-                    if (inputs[2]) lockInput(inputs[2]); // planned_pct
+                    if (inputs[0]) lockInput(inputs[0]);
+                    if (inputs[1]) lockInput(inputs[1]);
+                    if (inputs[2]) lockInput(inputs[2]);
                 } else {
-                    if (inputs[0]) lockInput(inputs[0]); // planned
+                    if (inputs[0]) lockInput(inputs[0]);
                 }
             }
         });
     }
 
-    // Скрываем кнопку сохранения для viewer
     if (role === 'viewer') {
         const saveBtn = document.getElementById('savePlansBtn');
         if (saveBtn) saveBtn.style.display = 'none';

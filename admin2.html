@@ -42,6 +42,7 @@
                         <option value="user">Только фактические показатели (1 регион)</option>
                         <option value="plan_only">Только плановые показатели (все регионы)</option>
                         <option value="viewer">Только просмотр (без редактирования)</option>
+                        <option value="viewer_p7">Просмотр + редактирование плана 7</option>
                     </select>
                 </div>
                 <div id="uRegionGroup" style="display:none;">
@@ -256,7 +257,8 @@
             planner:    'Полный доступ (план + факт)',
             user:       'Только фактические',
             plan_only:  'Только плановые',
-            viewer:     'Только просмотр'
+            viewer:     'Только просмотр',
+            viewer_p7:  'Просмотр + план 7'
         };
 
         // =====================================================================
@@ -450,7 +452,7 @@
                 const regionLabel = (u.regionIndex !== null && u.regionIndex !== undefined && u.regionIndex >= 0)
                     ? REGIONS[u.regionIndex] || '—' : '—';
                 const accessLabel = ACCESS_LABELS[u.role] || u.role;
-                const accessColor = u.role === 'viewer' ? '#9ca3af' : u.role === 'admin' ? '#7c3aed' : u.role === 'planner' ? '#1a56db' : u.role === 'plan_only' ? '#0891b2' : '#059669';
+                const accessColor = u.role === 'viewer' ? '#9ca3af' : u.role === 'viewer_p7' ? '#d97706' : u.role === 'admin' ? '#7c3aed' : u.role === 'planner' ? '#1a56db' : u.role === 'plan_only' ? '#0891b2' : '#059669';
                 return `<tr>
                     <td style="font-weight:600;">${u.username}</td>
                     <td style="color:#374151;">${u.fullName || '—'}</td>
