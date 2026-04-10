@@ -1207,13 +1207,13 @@ function buildPlan7TableXml(planData) {
     ];
 
     const headerRow = '<w:tr>' + headers.map((h, i) =>
-        cell(h, colW[i], { bold: true, center: true, fill: 'D9E1F2' })
+        cell(h, colW[i], { bold: true, center: true })
     ).join('') + '</w:tr>';
 
     let dataRows = '';
     planData.forEach((row, idx) => {
         const isTotal = row[0] === '-' || String(row[1] || '').trim() === 'Всего';
-        const fill = isTotal ? 'BDD7EE' : null;
+        const fill = null;
         const num = isTotal ? '-' : String(idx + 1);
         dataRows += '<w:tr>'
             + cell(num,    colW[0], { bold: isTotal, center: true, fill })
