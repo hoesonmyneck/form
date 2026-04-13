@@ -160,7 +160,7 @@ function initializeTables() {
                 <td><input ${num} data-plan="7" data-row="${rr7}" data-col="4" readonly style="background:#f3f4f6;cursor:not-allowed;"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},4)" title="Добавить примечание">📝</button></td>`;
             }
             const ia = isText ? txt : num;
-            const ro = isText ? '' : 'readonly style="background:#f3f4f6;cursor:not-allowed;"';
+            const roCoefficient = 'readonly style="background:#f3f4f6;cursor:not-allowed;"';
             const oi = isText ? `oninput="calculateTotals(${i})"` : `oninput="calculateCoefficient(${i},${typeof rowIdx === 'number' ? rowIdx : 20})"`;
             const rr = typeof rowIdx === 'number' ? rowIdx : 20;
             return `
@@ -168,7 +168,7 @@ function initializeTables() {
                 <td>${regionCell}</td>
                 <td><input ${ia} data-plan="${i}" data-row="${rr}" data-col="0" ${oi}><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},0)" title="Добавить примечание">📝</button></td>
                 <td><input ${ia} data-plan="${i}" data-row="${rr}" data-col="1" ${oi}><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},1)" title="Добавить примечание">📝</button></td>
-                <td><input ${ia} data-plan="${i}" data-row="${rr}" data-col="2" ${ro}><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},2)" title="Добавить примечание">📝</button></td>`;
+                <td><input ${ia} data-plan="${i}" data-row="${rr}" data-col="2" ${roCoefficient}><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},2)" title="Добавить примечание">📝</button></td>`;
         }
 
         REGIONS.forEach((region, index) => {
@@ -273,6 +273,8 @@ function lockInput(input) {
 //             (col0=kol_del, col1=planned_qty — не участвуют в расчёте)
 // Для остальных: planned=col0, actual=col1, coeff=col2
 function calculateCoefficient(planNum, rowIdx) {
+    const recalcTotals = arguments.length > 2 ? !!arguments[2] : true;
+
     const pCol = planNum === 7 ? 2 : 0;
     const aCol = planNum === 7 ? 3 : 1;
     const cCol = planNum === 7 ? 4 : 2;
@@ -282,27 +284,105 @@ function calculateCoefficient(planNum, rowIdx) {
     
     if (!plannedInput || !actualInput || !coefficientInput) return;
     
-    const planned = parseFloat(plannedInput.value) || 0;
-    const actual = parseFloat(actualInput.value) || 0;
-    
-    if (planned === 0) {
-        coefficientInput.value = '';
-        return;
+    const parseSlashValue = (value) => {
+        const s = String(value || '').trim();
+        if (!s) return [0, 0];
+        if (!s.includes('/')) {
+            return [parseFloat(s.replace(',', '.')) || 0, 0];
+        }
+        const parts = s.split('/').map(v => parseFloat(v.trim().replace(',', '.')) || 0);
+        return [parts[0] || 0, parts[1] || 0];
+    };
+
+    const formatCoeff = (value) => {
+        if (!isFinite(value) || value <= 0) return '';
+        const normalized = Math.max(0, Math.min(100, Math.round(value)));
+        return String(normalized);
+    };
+
+    const clampToPercentRange = (value) => {
+        if (!isFinite(value)) return 0;
+        return Math.max(0, Math.min(100, value));
+    };
+
+    const formatCoeffOrZero = (value) => {
+        if (!isFinite(value) || value < 0) return '0';
+        const normalized = Math.max(0, Math.min(100, Math.round(value)));
+        return String(normalized);
+    };
+
+    const clampPercent = (value) => {
+        if (!isFinite(value)) return 0;
+        if (value < 0) return 0;
+        return value > 100 ? 100 : value;
     }
     
-    // Рассчитываем процент фактического от планового
-    let coefficient = (actual / planned) * 100;
-    
-    // Ограничиваем максимум 100%
-    if (coefficient > 100) {
-        coefficient = 100;
+    if (planNum === 8) {
+        const [planned1, planned2] = parseSlashValue(plannedInput.value);
+        const [actual1, actual2] = parseSlashValue(actualInput.value);
+        const bothEmpty = planned1 === 0 && planned2 === 0;
+        if (bothEmpty) {
+            coefficientInput.value = '';
+            return;
+        }
+
+        const hasSlash = String(plannedInput.value).includes('/') || String(actualInput.value).includes('/');
+        if (!hasSlash) {
+            if (planned1 === 0) {
+                coefficientInput.value = '';
+                return;
+            }
+            const coefficient = clampPercent((actual1 / planned1) * 100);
+            coefficientInput.value = formatCoeff(coefficient);
+        } else {
+            const c1 = clampPercent(planned1 > 0 ? (actual1 / planned1) * 100 : 0);
+            const c2 = clampPercent(planned2 > 0 ? (actual2 / planned2) * 100 : 0);
+            coefficientInput.value = `${formatCoeffOrZero(c1)}/${formatCoeffOrZero(c2)}`;
+        }
+    } else {
+        const planned = parseFloat(plannedInput.value) || 0;
+        const actual = parseFloat(actualInput.value) || 0;
+        
+        if (planned === 0) {
+            coefficientInput.value = '';
+            return;
+        }
+        
+        // Рассчитываем процент фактического от планового
+        let coefficient = (actual / planned) * 100;
+        
+        // Ограничиваем максимум 100%
+        if (coefficient > 100) {
+            coefficient = 100;
+        }
+        
+        coefficientInput.value = formatCoeff(coefficient);
     }
-    
-    // Округляем до 1 знака после запятой
-    coefficientInput.value = coefficient.toFixed(1);
 
     // Пересчитываем строку «Всего» если план авто-рассчитываемый
-    calculateTotals(planNum);
+    if (recalcTotals) {
+        calculateTotals(planNum);
+    }
+}
+
+// Автопересчет коэффициента исполнения по всем строкам (кроме строки «Всего»)
+function recalculateCoefficientColumn(planNum) {
+    const tbody = document.getElementById(`plan${planNum}-tbody`);
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const dataRows = rows.slice(0, -1);
+
+    dataRows.forEach(row => {
+        const firstCell = row.querySelector('td:first-child');
+        if (!firstCell || firstCell.textContent.trim() === '-') return;
+
+        const markerCol = planNum === 7 ? 2 : 0;
+        const markerInput = row.querySelector(`input[data-plan="${planNum}"][data-col="${markerCol}"]`);
+        if (!markerInput || !markerInput.dataset.row) return;
+
+        calculateCoefficient(planNum, markerInput.dataset.row, false);
+    });
 }
 
 // Автоматический расчёт строки «Всего»
@@ -320,6 +400,20 @@ function calculateTotals(planNum) {
     const totalRow = rows[rows.length - 1];
     const dataRows = rows.slice(0, -1);
     const totalInputs = totalRow.querySelectorAll('input');
+    const formatCoeff = (value) => {
+        if (!isFinite(value) || value <= 0) return '';
+        const normalized = Math.max(0, Math.min(100, Math.round(value)));
+        return String(normalized);
+    };
+    const clampToPercentRange = (value) => {
+        if (!isFinite(value)) return 0;
+        return Math.max(0, Math.min(100, value));
+    };
+    const formatCoeffOrZero = (value) => {
+        if (!isFinite(value) || value < 0) return '0';
+        const normalized = Math.max(0, Math.min(100, Math.round(value)));
+        return String(normalized);
+    };
 
     if (planNum === 8) {
         // План 8 (отображается как 7): формат "X/Y"
@@ -329,7 +423,7 @@ function calculateTotals(planNum) {
 
         function parseSlash(val) {
             if (!val || val.trim() === '') return [0, 0];
-            const parts = val.split('/').map(s => parseFloat(s.trim()) || 0);
+            const parts = val.split('/').map(s => parseFloat(s.trim().replace(',', '.')) || 0);
             return [parts[0] || 0, parts[1] || 0];
         }
 
@@ -344,9 +438,9 @@ function calculateTotals(planNum) {
         if (totalInputs[0]) totalInputs[0].value = (pX || pY) ? `${pX}/${pY}` : '';
         if (totalInputs[1]) totalInputs[1].value = (aX || aY) ? `${aX}/${aY}` : '';
 
-        const cX = pX > 0 ? (aX / pX * 100) : 0;
-        const cY = pY > 0 ? (aY / pY * 100) : 0;
-        if (totalInputs[2]) totalInputs[2].value = (cX || cY) ? `${cX.toFixed(1)}/${cY.toFixed(1)}` : '';
+        const cX = clampToPercentRange(pX > 0 ? (aX / pX * 100) : 0);
+        const cY = clampToPercentRange(pY > 0 ? (aY / pY * 100) : 0);
+        if (totalInputs[2]) totalInputs[2].value = (cX || cY) ? `${formatCoeffOrZero(cX)}/${formatCoeffOrZero(cY)}` : '';
 
     } else if (planNum === 7) {
         // Plan 7 (отображается как 6): расширенная структура
@@ -372,8 +466,8 @@ function calculateTotals(planNum) {
         if (totalInputs[2]) totalInputs[2].value = avgPP ? avgPP.toFixed(1) : '';
         if (totalInputs[3]) totalInputs[3].value = avgAP ? avgAP.toFixed(1) : '';
 
-        const coeff = avgPP > 0 ? (avgAP / avgPP) * 100 : 0;
-        if (totalInputs[4]) totalInputs[4].value = coeff > 0 ? (coeff > 100 ? '100.0' : coeff.toFixed(1)) : '';
+        const coeff = clampToPercentRange(avgPP > 0 ? (avgAP / avgPP) * 100 : 0);
+        if (totalInputs[4]) totalInputs[4].value = formatCoeff(coeff);
 
     } else if (planNum === 3) {
         // План 3: сумма (не среднее)
@@ -388,8 +482,8 @@ function calculateTotals(planNum) {
         if (totalInputs[0]) totalInputs[0].value = sumP || '';
         if (totalInputs[1]) totalInputs[1].value = sumA || '';
 
-        const coeff = sumP > 0 ? (sumA / sumP) * 100 : 0;
-        if (totalInputs[2]) totalInputs[2].value = coeff > 0 ? (coeff > 100 ? '100.0' : coeff.toFixed(1)) : '';
+        const coeff = clampToPercentRange(sumP > 0 ? (sumA / sumP) * 100 : 0);
+        if (totalInputs[2]) totalInputs[2].value = formatCoeff(coeff);
 
     } else {
         // Планы 1, 2, 4, 5: среднее арифметическое
@@ -409,9 +503,13 @@ function calculateTotals(planNum) {
         if (totalInputs[0]) totalInputs[0].value = avgP ? avgP.toFixed(1) : '';
         if (totalInputs[1]) totalInputs[1].value = avgA ? avgA.toFixed(1) : '';
 
-        const coeff = avgP > 0 ? (avgA / avgP) * 100 : 0;
-        if (totalInputs[2]) totalInputs[2].value = coeff > 0 ? (coeff > 100 ? '100.0' : coeff.toFixed(1)) : '';
+        const coeff = clampToPercentRange(avgP > 0 ? (avgA / avgP) * 100 : 0);
+        if (totalInputs[2]) totalInputs[2].value = formatCoeff(coeff);
     }
+
+    // Автообновление всего столбца «Коэффициент исполнения» по той же логике,
+    // что и для измененной строки «Всего»
+    recalculateCoefficientColumn(planNum);
 }
 
 // Показать модальное окно для примечания
@@ -534,22 +632,27 @@ function restoreTableData(planId, data) {
     });
 }
 
-// Сохранение всех планов
+// Сохранение текущего открытого плана (не всех планов сразу)
 async function saveAllPlans() {
     const token = localStorage.getItem('accessToken');
     const plans = {};
-    
-    for (let i = 1; i <= 8; i++) {
-        const planId = `plan${i}`;
-        plans[planId] = collectTableData(planId);
-    }
-    
-    // Собираем даты всех планов
+    const notesToSave = {};
+    const planId = currentPlanTab;
+
+    plans[planId] = collectTableData(planId);
+
+    // Передаем только notes текущего плана
+    const notePrefix = `${planId}_`;
+    Object.keys(notes).forEach((key) => {
+        if (key.startsWith(notePrefix)) {
+            notesToSave[key] = notes[key];
+        }
+    });
+
+    // Собираем дату только текущего плана
     const planDates = {};
-    for (let p = 1; p <= 8; p++) {
-        const el = document.getElementById(`plan${p}-date`);
-        if (el) planDates[`plan${p}`] = el.value;
-    }
+    const dateEl = document.getElementById(`${planId}-date`);
+    if (dateEl) planDates[planId] = dateEl.value;
 
     try {
         const response = await fetch('/api/plans/save', {
@@ -558,7 +661,7 @@ async function saveAllPlans() {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ plans, notes, planDates })
+            body: JSON.stringify({ plans, notes: notesToSave, planDates })
         });
         
         const result = await response.json();

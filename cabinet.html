@@ -165,6 +165,42 @@
             overflow-x: auto;
         }
 
+        .floating-table-scrollbar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 2000;
+            padding: 6px 0;
+            background: rgba(241, 245, 249, 0.95);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.08);
+            overflow-x: auto;
+            overflow-y: hidden;
+            pointer-events: auto;
+            opacity: 0;
+            transform: translateY(100%);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .floating-table-scrollbar.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .floating-table-scrollbar-inner {
+            height: 1px;
+            pointer-events: none;
+        }
+
+        body.with-floating-scrollbar {
+            padding-bottom: 32px;
+        }
+
+        body.with-floating-scrollbar .floating-table-scrollbar {
+            /* keeps space so content doesn't hide the scrollbar */
+        }
+
         .form-table {
             width: 100%;
             border-collapse: collapse;
@@ -262,9 +298,10 @@
             <select class="filter-select" id="userFilter" onchange="filterForms()">
                 <option value="">Все пользователи</option>
             </select>
-            <select class="filter-select" id="orgFilter" onchange="filterForms()">
+            <!-- <select class="filter-select" id="orgFilter" onchange="filterForms()">
                 <option value="">Все организации</option>
-            </select>
+            </select> -->
+            <select class="filter-select" id="categoryFilter" onchange="filterForms()"></select>
             <select class="filter-select" id="typeFilter" onchange="filterForms()">
                 <option value="">Все типы</option>
                 <option value="soc">Соц. защита</option>
@@ -290,16 +327,128 @@
         <div id="form4Container" class="form-container hidden"></div>
     </div>
 
+    <div id="globalTableScrollbar" class="floating-table-scrollbar" aria-hidden="true">
+        <div id="globalTableScrollbarInner" class="floating-table-scrollbar-inner"></div>
+    </div>
+
     <script>
         let currentTab = 1;
         let allForms = [];
+        const FORM_CATEGORIES = {
+            1: [
+                { id: 'form1-plaintiffs', label: 'В качестве истцов' },
+                { id: 'form1-defendants', label: 'В качестве ответчиков' },
+                { id: 'form1-thirdparty', label: 'В качестве третьего лица' }
+            ],
+            2: [
+                { id: 'form2-plaintiffs', label: 'В качестве истцов' },
+                { id: 'form2-defendants', label: 'В качестве ответчиков' },
+                { id: 'form2-thirdparty', label: 'В качестве третьего лица' }
+            ],
+            3: [
+                { id: 'form3-appeal', label: 'Апелляционная инстанция' },
+                { id: 'form3-cassation', label: 'Кассационная инстанция' },
+                { id: 'form3-supervision', label: 'Надзорная инстанция' }
+            ],
+            4: [
+                { id: 'form4-court-definitions', label: 'Частные определения суда' },
+                { id: 'form4-monetary', label: 'Денежное взыскание суда' },
+                { id: 'form4-prosecutor', label: 'Акты прокурорского надзора' },
+                { id: 'form4-prescriptions', label: 'Предписание других государственных органов' },
+                { id: 'form4-fines', label: 'Административные штрафы' }
+            ]
+        };
+
+        const CATEGORY_HEADERS = {
+            1: {
+                'form1-plaintiffs': ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
+                'form1-defendants': ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
+                'form1-thirdparty': ['№', 'Суть спора (предмет, сумма иска и другие)', 'Количество']
+            },
+            2: {
+                'form2-plaintiffs': ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
+                'form2-defendants': ['№', 'Истец', 'Ответчик', 'Суть спора (МСЭ, социальное обеспечение, доступность)', 'Номер № и дата административного акта', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
+                'form2-thirdparty': ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание']
+            },
+            3: {
+                'form3-appeal': ['Раздел', 'Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание'],
+                'form3-cassation': ['Раздел', 'Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание'],
+                'form3-supervision': ['Раздел', 'Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание']
+            },
+            4: {
+                'form4-court-definitions': ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание'],
+                'form4-monetary': ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание'],
+                'form4-prosecutor': ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание'],
+                'form4-prescriptions': ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание'],
+                'form4-fines': ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание']
+            }
+        };
+
+        function getHeadersForRows(tabNumber, rows) {
+            const selectedCategory = getSelectedCategory();
+            if (selectedCategory && CATEGORY_HEADERS[tabNumber] && CATEGORY_HEADERS[tabNumber][selectedCategory]) {
+                return CATEGORY_HEADERS[tabNumber][selectedCategory].slice();
+            }
+
+            const defaultHeaders = {
+                1: ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
+                2: ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
+                3: ['Раздел', 'Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание'],
+                4: ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание']
+            };
+
+            if (selectedCategory) {
+                const rowWithCols = rows.find(row => row && row.cells && row.cells.length > 1);
+                if (rowWithCols) {
+                    const headerCount = rowWithCols.cells.length;
+                    const headers = ['№'];
+                    for (let i = 1; i < headerCount; i++) {
+                        headers.push(`Колонка ${i}`);
+                    }
+                    return headers;
+                }
+            }
+
+            return defaultHeaders[tabNumber] || [];
+        }
+
+        // Обновление выпадающего списка категорий под выбранную форму
+        function updateCategoryFilter() {
+            const categoryFilter = document.getElementById('categoryFilter');
+            if (!categoryFilter) return;
+
+            const currentValue = categoryFilter.value;
+            const options = FORM_CATEGORIES[currentTab] || [];
+            const normalized = Array.isArray(options) ? options : [];
+
+            categoryFilter.innerHTML = '';
+            normalized.forEach(option => {
+                categoryFilter.innerHTML += `<option value="${option.id}">${escapeHtml(option.label)}</option>`;
+            });
+
+            const hasCurrent = normalized.find(option => option.id === currentValue);
+            categoryFilter.value = hasCurrent ? currentValue : (normalized[0] ? normalized[0].id : '');
+        }
+
+        // Получить выбранную категорию
+        function getSelectedCategory() {
+            const categoryFilter = document.getElementById('categoryFilter');
+            return categoryFilter ? categoryFilter.value : '';
+        }
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', async () => {
+            const scrollContainer = globalTableScrollbar();
+            if (scrollContainer) {
+                scrollContainer.addEventListener('scroll', handleGlobalTableScrollbarScroll, { passive: true });
+            }
+            window.addEventListener('resize', () => requestAnimationFrame(syncGlobalTableScrollbar));
+
             const hasAccess = await checkUserAccess();
             if (hasAccess) {
                 await loadAllForms();
                 updateFilters();
+                updateCategoryFilter();
                 renderCurrentForm();
             }
         });
@@ -380,7 +529,45 @@
                 container.classList.toggle('hidden', i !== formNumber);
             }
 
+            updateCategoryFilter();
             renderCurrentForm();
+        }
+
+        function collectRowsFromForms(forms) {
+            const rows = [];
+            forms.forEach(form => {
+                const formData = form.formData;
+                if (formData && formData.tables && Object.keys(formData.tables).length > 0) {
+                    const userInfo = {
+                        fullName: form.userFullName || form.username,
+                        organization: form.userOrganization || form.organization,
+                        savedAt: new Date(form.uploadedAt).toLocaleString('ru-RU')
+                    };
+
+                    for (const tableId in formData.tables) {
+                        const tableData = formData.tables[tableId];
+                        const formRows = tableData.rows || tableData;
+                        const rowIds = tableData.rowIds || [];
+
+                        formRows.forEach((row, rowIndex) => {
+                            rows.push({
+                                user: userInfo,
+                                tableId,
+                                rowId: rowIds[rowIndex] || '',
+                                cells: row,
+                                attachedFiles: form.attachedFiles || {}
+                            });
+                        });
+                    }
+                }
+            });
+            return rows;
+        }
+
+        function applyCategoryFilter(rows) {
+            const selectedCategory = getSelectedCategory();
+            if (!selectedCategory) return [];
+            return rows.filter(row => row.tableId === selectedCategory);
         }
 
         // Рендеринг текущей формы
@@ -394,81 +581,131 @@
             forms = applyFilters(forms);
             console.log(`🔍 После фильтров: ${forms.length} записей`);
 
-            if (forms.length === 0) {
+            let allRows = collectRowsFromForms(forms);
+            allRows = applyCategoryFilter(allRows);
+            console.log(`📂 После фильтра категорий: ${allRows.length} записей`);
+
+            if (allRows.length === 0) {
                 container.innerHTML = '<div class="empty-state">Нет данных для отображения</div>';
+                hideGlobalTableScrollbar();
                 return;
             }
 
             // Рендерим таблицу с данными
-            container.innerHTML = renderFormTable(forms);
+            container.innerHTML = renderFormTable(allRows);
+            requestAnimationFrame(syncGlobalTableScrollbar);
+        }
+
+        function getActiveFormTableContainer() {
+            const containers = document.querySelectorAll('.form-container');
+            for (const container of containers) {
+                if (!container.classList.contains('hidden')) {
+                    return container.querySelector('.form-table-container');
+                }
+            }
+            return null;
+        }
+
+        let currentlyTrackedFormTable = null;
+        const globalTableScrollbar = () => document.getElementById('globalTableScrollbar');
+        const globalTableScrollbarInner = () => document.getElementById('globalTableScrollbarInner');
+        let syncingGlobalScroll = false;
+
+        function syncGlobalTableScrollbar() {
+            const tableWrapper = getActiveFormTableContainer();
+            if (!tableWrapper) {
+                hideGlobalTableScrollbar();
+                return;
+            }
+
+            const table = tableWrapper.querySelector('.form-table');
+            if (!table) {
+                hideGlobalTableScrollbar();
+                return;
+            }
+
+            const scrollContainer = globalTableScrollbar();
+            const scrollInner = globalTableScrollbarInner();
+            if (!scrollContainer || !scrollInner) {
+                return;
+            }
+
+            if (table.scrollWidth <= tableWrapper.clientWidth) {
+                hideGlobalTableScrollbar();
+                return;
+            }
+
+            scrollInner.style.width = `${table.scrollWidth}px`;
+            scrollContainer.classList.add('visible');
+            document.body.classList.add('with-floating-scrollbar');
+            if (scrollContainer.scrollLeft !== tableWrapper.scrollLeft) {
+                scrollContainer.scrollLeft = tableWrapper.scrollLeft;
+            }
+
+            if (currentlyTrackedFormTable !== tableWrapper) {
+                if (currentlyTrackedFormTable) {
+                    currentlyTrackedFormTable.removeEventListener('scroll', handleFormTableScroll);
+                }
+                currentlyTrackedFormTable = tableWrapper;
+                currentlyTrackedFormTable.addEventListener('scroll', handleFormTableScroll, { passive: true });
+            }
+        }
+
+        function hideGlobalTableScrollbar() {
+            const scrollContainer = globalTableScrollbar();
+            if (scrollContainer) {
+                scrollContainer.classList.remove('visible');
+                scrollContainer.scrollLeft = 0;
+            }
+            document.body.classList.remove('with-floating-scrollbar');
+            if (currentlyTrackedFormTable) {
+                currentlyTrackedFormTable.removeEventListener('scroll', handleFormTableScroll);
+                currentlyTrackedFormTable = null;
+            }
+        }
+
+        function handleFormTableScroll(event) {
+            const scrollContainer = globalTableScrollbar();
+            if (!scrollContainer || syncingGlobalScroll) {
+                return;
+            }
+            syncingGlobalScroll = true;
+            scrollContainer.scrollLeft = event.target.scrollLeft;
+            syncingGlobalScroll = false;
+        }
+
+        function handleGlobalTableScrollbarScroll() {
+            const tableWrapper = getActiveFormTableContainer();
+            if (!tableWrapper || syncingGlobalScroll) {
+                return;
+            }
+            syncingGlobalScroll = true;
+            tableWrapper.scrollLeft = globalTableScrollbar().scrollLeft;
+            syncingGlobalScroll = false;
         }
 
         // Рендеринг таблицы формы
-        function renderFormTable(forms) {
-            if (forms.length === 0) return '';
-
-            // Собираем все строки из всех форм в одну большую таблицу
-            let allRows = [];
-            
-            forms.forEach(form => {
-                const formData = form.formData;
-                
-                // Информация о пользователе для каждой строки
-                const userInfo = {
-                    fullName: form.userFullName || form.username,
-                    organization: form.userOrganization || form.organization,
-                    savedAt: new Date(form.uploadedAt).toLocaleString('ru-RU')
-                };
-                
-                // Собираем все строки из всех таблиц этой формы
-                if (formData.tables && Object.keys(formData.tables).length > 0) {
-                    for (const tableId in formData.tables) {
-                        const tableData = formData.tables[tableId];
-                        
-                        // Поддержка нового формата (с rows + rowIds) и старого (просто массив)
-                        const rows   = tableData.rows   || tableData;
-                        const rowIds = tableData.rowIds || [];
-                        
-                        rows.forEach((row, rowIndex) => {
-                            allRows.push({
-                                user: userInfo,
-                                tableId: tableId,
-                                rowId: rowIds[rowIndex] || '',
-                                cells: row,
-                                attachedFiles: form.attachedFiles || {}
-                            });
-                        });
-                    }
-                }
-            });
-
+        function renderFormTable(allRows) {
             if (allRows.length === 0) {
                 return '<div class="empty-state">Нет данных для отображения</div>';
             }
 
-            // Стандартные заголовки для каждой формы
-            const defaultHeaders = {
-                1: ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
-                2: ['№', 'Истец', 'Ответчик', 'Суть спора (предмет, сумма иска и другие)', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
-                3: ['Раздел', 'Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание'],
-                4: ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание']
-            };
+            const preparedRows = allRows.slice();
+
+            let headers = getHeadersForRows(currentTab, preparedRows);
+            if (headers.length === 0 && preparedRows.length > 0) {
+                const maxCols = Math.max(...preparedRows.map(r => r.cells.length));
+                headers = ['№'];
+                for (let i = 1; i < maxCols; i++) {
+                    headers.push(`Колонка ${i}`);
+                }
+            }
 
             const sectionNames = {
                 'form3-appeal':     'Апелляционная инстанция',
                 'form3-cassation':  'Кассационная инстанция',
                 'form3-supervision':'Надзорная инстанция'
             };
-            
-            let headers = defaultHeaders[currentTab] || [];
-            
-            if (headers.length === 0 && allRows.length > 0) {
-                const maxCols = Math.max(...allRows.map(r => r.cells.length));
-                headers = ['№'];
-                for (let i = 1; i < maxCols; i++) {
-                    headers.push(`Колонка ${i}`);
-                }
-            }
 
             let html = '<div class="form-table-container">';
             html += '<table class="form-table">';
@@ -541,7 +778,8 @@
         // Применение фильтров
         function applyFilters(forms) {
             const userFilter = document.getElementById('userFilter').value;
-            const orgFilter = document.getElementById('orgFilter').value;
+            const orgFilterElement = document.getElementById('orgFilter');
+            const orgFilter = orgFilterElement ? orgFilterElement.value : '';
             const typeFilter = document.getElementById('typeFilter').value;
 
             if (userFilter) {
@@ -586,13 +824,15 @@
             console.log('👤 Пользователей в фильтре:', usersMap.size);
 
             const orgFilter = document.getElementById('orgFilter');
-            const orgsSet = new Set(allForms.map(f => f.userOrganization || f.organization).filter(o => o));
-            
-            orgFilter.innerHTML = '<option value="">Все организации</option>';
-            orgsSet.forEach(org => {
-                orgFilter.innerHTML += `<option value="${escapeHtml(org)}">${escapeHtml(org)}</option>`;
-            });
-            console.log('🏢 Организаций в фильтре:', orgsSet.size);
+            if (orgFilter) {
+                const orgsSet = new Set(allForms.map(f => f.userOrganization || f.organization).filter(o => o));
+                
+                orgFilter.innerHTML = '<option value="">Все организации</option>';
+                orgsSet.forEach(org => {
+                    orgFilter.innerHTML += `<option value="${escapeHtml(org)}">${escapeHtml(org)}</option>`;
+                });
+                console.log('🏢 Организаций в фильтре:', orgsSet.size);
+            }
         }
 
         // Фильтрация
@@ -669,30 +909,8 @@
             // Получаем текущие отфильтрованные формы
             let forms = allForms.filter(f => f.formNumber == currentTab);
             forms = applyFilters(forms);
-            
-            if (forms.length === 0) {
-                showToast('Нет данных для скачивания', 'error');
-                return;
-            }
-
-            // Собираем все строки
-            let allRows = [];
-            forms.forEach(form => {
-                const formData = form.formData;
-                if (formData.tables && Object.keys(formData.tables).length > 0) {
-                    for (const tableId in formData.tables) {
-                        const tableData = formData.tables[tableId];
-                        const rows = tableData.rows || tableData;
-                        rows.forEach(row => {
-                            allRows.push({
-                                user: form.userFullName || form.username,
-                                organization: form.userOrganization || form.organization,
-                                cells: row
-                            });
-                        });
-                    }
-                }
-            });
+            let allRows = collectRowsFromForms(forms);
+            allRows = applyCategoryFilter(allRows);
 
             if (allRows.length === 0) {
                 showToast('Нет данных для скачивания', 'error');
@@ -700,14 +918,7 @@
             }
 
             // Заголовки для каждой формы
-            const defaultHeaders = {
-                1: ['№', 'Истец', 'Ответчик', 'Суть спора', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
-                2: ['№', 'Истец', 'Ответчик', 'Суть спора', 'Судебный акт первой инстанции', 'Апелляция', 'Кассация', 'Примечание'],
-                3: ['Раздел', 'Предмет спора', 'Количество за квартал', 'Согласовано*', 'Отказано*', 'На рассмотрении*', 'Примечание'],
-                4: ['№', 'Вид акта', 'Вид нарушения', 'Принятые меры', 'Обжалование', 'Примечание']
-            };
-            
-            const headers = defaultHeaders[currentTab] || [];
+            const headers = getHeadersForRows(currentTab, allRows);
             const formNames = {
                 1: 'Гражданские_дела',
                 2: 'Административные_дела', 
