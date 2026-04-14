@@ -43,6 +43,17 @@ pool.connect((err, client, release) => {
             console.log('✅ Таблица plan_history готова');
             scheduleFridaySnapshot();
         }).catch(e => console.error('❌ plan_history:', e.message));
+
+        // Таблица кэша данных план2 из Oracle (PAM → сервер)
+        pool.query(`
+            CREATE TABLE IF NOT EXISTS oracle_plan2_cache (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                data JSONB NOT NULL DEFAULT '{}',
+                fetched_at TIMESTAMP DEFAULT NOW(),
+                CHECK (id = 1)
+            )
+        `).then(() => console.log('✅ Таблица oracle_plan2_cache готова'))
+          .catch(e => console.error('❌ oracle_plan2_cache:', e.message));
     }
 });
 
@@ -1177,6 +1188,122 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Ошибка генерации документа:', error);
         res.status(500).json({ error: 'Ошибка при генерации документа: ' + error.message });
+    }
+});
+
+// =====================================================
+// ORACLE PLAN2 CACHE  (PAM → Server push)
+// =====================================================
+
+const ORACLE_PUSH_SECRET = process.env.ORACLE_PUSH_SECRET || 'oracle_push_secret_2026';
+
+// Маппинг: позиция строки в Oracle view (ORDER BY REGION) → название региона на сайте
+// Порядок зафиксирован по алфавиту: view возвращает 20 строк в этом порядке
+const ORACLE_ROW_TO_REGION = [
+    null,                                   // 0 — не используется
+    'Акмолинская область',                  // 1  АКМОЛИНСКАЯ ОБЛАСТЬ
+    'Актюбинская область',                  // 2  АКТЮБИНСКАЯ ОБЛАСТЬ
+    'Алматинская область',                  // 3  АЛМАТИНСКАЯ ОБЛАСТЬ
+    'Атырауская область',                   // 4  АТЫРАУСКАЯ ОБЛАСТЬ
+    'Восточно-Казахстанская область',       // 5  ВОСТОЧНО-КАЗАХСТАНСКАЯ ОБЛАСТЬ
+    'г. Алматы',                            // 6  Г.АЛМАТЫ
+    'г. Астана',                            // 7  Г.АСТАНА
+    'г. Шымкент',                           // 8  Г.ШЫМКЕНТ
+    'Жамбылская область',                   // 9  ЖАМБЫЛСКАЯ ОБЛАСТЬ
+    'Западно-Казахстанская область',        // 10 ЗАПАДНО-КАЗАХСТАНСКАЯ ОБЛАСТЬ
+    'Карагандинская область',               // 11 КАРАГАНДИНСКАЯ ОБЛАСТЬ
+    'Костанайская область',                 // 12 КОСТАНАЙСКАЯ ОБЛАСТЬ
+    'Кызылординская область',               // 13 КЫЗЫЛОРДИНСКАЯ ОБЛАСТЬ
+    'Мангистауская область',                // 14 МАНГИСТАУСКАЯ ОБЛАСТЬ
+    'Область Абай',                         // 15 ОБЛАСТЬ АБАЙ
+    'Область Жетысу',                       // 16 ОБЛАСТЬ ЖЕТЫСУ
+    'Область Улытау',                       // 17 ОБЛАСТЬ УЛЫТАУ
+    'Павлодарская область',                 // 18 ПАВЛОДАРСКАЯ ОБЛАСТЬ
+    'Северо-Казахстанская область',         // 19 СЕВЕРО-КАЗАХСТАНСКАЯ ОБЛАСТЬ
+    'Туркестанская область',                // 20 ТУРКЕСТАНСКАЯ ОБЛАСТЬ
+];
+
+/**
+ * POST /api/plans/oracle-push
+ * Принимает данные плана 2 от PAM-скрипта и сохраняет в кэш.
+ * Принимает oracleRows: [{row: 1, proc: 53.43}, ...] — без кириллицы.
+ * Сервер сам переводит номер строки → название региона.
+ */
+app.post('/api/plans/oracle-push', async (req, res) => {
+    try {
+        const { secret, oracleRows, plan2Source: legacySource, fetchedAt } = req.body;
+
+        if (!secret || secret !== ORACLE_PUSH_SECRET) {
+            console.warn('⚠️ oracle-push: неверный секрет');
+            return res.status(403).json({ error: 'Доступ запрещён' });
+        }
+
+        let plan2Source = {};
+
+        if (oracleRows && Array.isArray(oracleRows)) {
+            // Новый формат: [{row: 1, proc: 53.43}, ...]
+            for (const item of oracleRows) {
+                const regionName = ORACLE_ROW_TO_REGION[item.row];
+                if (!regionName) {
+                    console.warn(`⚠️ oracle-push: строка ${item.row} не имеет маппинга`);
+                    continue;
+                }
+                plan2Source[regionName] = parseFloat(item.proc) || 0;
+            }
+        } else if (legacySource && typeof legacySource === 'object') {
+            // Старый формат с именами напрямую
+            plan2Source = legacySource;
+        } else {
+            return res.status(400).json({ error: 'Нет данных: oracleRows или plan2Source' });
+        }
+
+        const regionCount = Object.keys(plan2Source).length;
+        if (regionCount === 0) {
+            return res.status(400).json({ error: 'Нет данных после маппинга' });
+        }
+
+        await pool.query(`
+            INSERT INTO oracle_plan2_cache (id, data, fetched_at)
+            VALUES (1, $1, NOW())
+            ON CONFLICT (id) DO UPDATE
+                SET data = $1, fetched_at = NOW()
+        `, [JSON.stringify(plan2Source)]);
+
+        console.log(`✅ oracle-push: ${regionCount} регионов (${new Date().toLocaleString('ru-RU')})`);
+
+        res.json({ success: true, regions: regionCount, fetchedAt: fetchedAt || new Date().toISOString() });
+
+    } catch (error) {
+        console.error('❌ oracle-push ошибка:', error.message);
+        res.status(500).json({ error: 'Ошибка при сохранении данных Oracle' });
+    }
+});
+
+/**
+ * GET /api/plans/oracle-plan2
+ * Возвращает закэшированные данные плана 2 из Oracle.
+ * Требует авторизацию (стандартный JWT токен).
+ */
+app.get('/api/plans/oracle-plan2', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT data, fetched_at FROM oracle_plan2_cache WHERE id = 1`
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ success: true, found: false, data: {}, fetchedAt: null });
+        }
+
+        res.json({
+            success: true,
+            found: true,
+            data: result.rows[0].data,
+            fetchedAt: result.rows[0].fetched_at
+        });
+
+    } catch (error) {
+        console.error('❌ oracle-plan2 ошибка:', error.message);
+        res.status(500).json({ error: 'Ошибка при чтении кэша Oracle' });
     }
 });
 
