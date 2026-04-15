@@ -721,8 +721,9 @@ async function loadPlansFromServer() {
         AUTO_TOTAL_PLANS.forEach(p => calculateTotals(p));
         // После загрузки данных применяем ограничения (инпуты пересозданы)
         applyColumnRestrictions();
-        // Подставляем фактические данные план2 из Oracle (если есть)
+        // Подставляем фактические данные из Oracle (если есть)
         applyOraclePlan2();
+        applyOraclePlan4();
     }
 }
 
@@ -874,7 +875,7 @@ function initSortableHeaders() {
 }
 
 // =====================================================================
-// АВТОЗАПОЛНЕНИЕ ПЛАНА 2 ИЗ ORACLE (через кэш на сервере)
+// АВТОЗАПОЛНЕНИЕ ПЛАНОВ ИЗ ORACLE (через кэш на сервере)
 // =====================================================================
 
 // Список регионов плана 2 в том порядке, что и строки таблицы
@@ -942,6 +943,73 @@ async function applyOraclePlan2() {
 
     } catch (e) {
         console.warn('Oracle plan2 недоступен, пропускаем автозаполнение:', e.message);
+    }
+}
+
+// Список регионов плана 4 в порядке строк таблицы (совпадает с PLAN2_REGIONS_ORDER)
+const PLAN4_REGIONS_ORDER = [
+    'г. Астана',
+    'г. Алматы',
+    'г. Шымкент',
+    'Акмолинская область',
+    'Актюбинская область',
+    'Алматинская область',
+    'Атырауская область',
+    'Восточно-Казахстанская область',
+    'Жамбылская область',
+    'Западно-Казахстанская область',
+    'Карагандинская область',
+    'Костанайская область',
+    'Кызылординская область',
+    'Мангистауская область',
+    'Павлодарская область',
+    'Северо-Казахстанская область',
+    'Туркестанская область',
+    'Область Абай',
+    'Область Улытау',
+    'Область Жетысу'
+];
+
+async function applyOraclePlan4() {
+    const token = localStorage.getItem('accessToken');
+    try {
+        const response = await fetch('/api/plans/oracle-plan4', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (!result.success || !result.found || !result.data) return;
+
+        const oracleData = result.data;
+        const tbody = document.getElementById('plan4-tbody');
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll('tr');
+
+        PLAN4_REGIONS_ORDER.forEach((regionName, idx) => {
+            if (idx >= rows.length) return;
+            const row = rows[idx];
+            const val = oracleData[regionName];
+            if (val === undefined || val === null) return;
+
+            // Фактический показатель — data-col="1"
+            const factInput = row.querySelector('input[data-plan="4"][data-col="1"]');
+            if (!factInput) return;
+
+            const formatted = parseFloat(val).toFixed(2).replace(/\.?0+$/, '');
+            factInput.value = formatted;
+            factInput.readOnly = true;
+            factInput.style.background = '#e8f5e9';
+            factInput.style.cursor = 'not-allowed';
+            factInput.title = `Авто из Oracle: ${formatted}%`;
+        });
+
+        calculateTotals(4);
+
+        console.log(`✅ Oracle plan4: подставлено ${Object.keys(oracleData).length} регионов (обновлено ${result.fetchedAt ? new Date(result.fetchedAt).toLocaleString('ru-RU') : '—'})`);
+
+    } catch (e) {
+        console.warn('Oracle plan4 недоступен, пропускаем автозаполнение:', e.message);
     }
 }
 
