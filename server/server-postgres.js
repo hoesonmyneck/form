@@ -65,6 +65,17 @@ pool.connect((err, client, release) => {
             )
         `).then(() => console.log('✅ Таблица oracle_plan4_cache готова'))
           .catch(e => console.error('❌ oracle_plan4_cache:', e.message));
+
+        // Таблица кэша данных план5 из Oracle (PAM → сервер)
+        pool.query(`
+            CREATE TABLE IF NOT EXISTS oracle_plan5_cache (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                data JSONB NOT NULL DEFAULT '{}',
+                fetched_at TIMESTAMP DEFAULT NOW(),
+                CHECK (id = 1)
+            )
+        `).then(() => console.log('✅ Таблица oracle_plan5_cache готова'))
+          .catch(e => console.error('❌ oracle_plan5_cache:', e.message));
     }
 });
 
@@ -1234,6 +1245,34 @@ const ORACLE_ROW_TO_REGION = [
     'Туркестанская область',                // 20 ТУРКЕСТАНСКАЯ ОБЛАСТЬ
 ];
 
+// Маппинг для плана 5: REG_ID из view_omk_qlick (это текстовое название) → полное название на сайте
+// Ключи — сокращённые названия из Oracle, значения — полные названия как на сайте
+const ORACLE_REGNAME_TO_REGION_PLAN5 = {
+    'Абай':           'Область Абай',
+    'Акмолинская':    'Акмолинская область',
+    'Актюбинская':    'Актюбинская область',
+    'Алматинская':    'Алматинская область',
+    'Атырауская':     'Атырауская область',
+    'ВКО':            'Восточно-Казахстанская область',
+    'г. Алматы':      'г. Алматы',
+    'г. Астана':      'г. Астана',
+    'г. Шымкент':     'г. Шымкент',
+    'Жамбылская':     'Жамбылская область',
+    'Жетісу':         'Область Жетысу',
+    'ЗКО':            'Западно-Казахстанская область',
+    'Карагандинская': 'Карагандинская область',
+    'Костанайская':   'Костанайская область',
+    'Кызылординская': 'Кызылординская область',
+    'Мангистауская':  'Мангистауская область',
+    'Павлодарская':   'Павлодарская область',
+    'СКО':            'Северо-Казахстанская область',
+    'Туркестанская':  'Туркестанская область',
+    // Улытау — может прийти с нестандартным символом Ў (Windows-1251 артефакт)
+    'Улытау':         'Область Улытау',
+    '\u040Eлытау':    'Область Улытау',  // Ўлытау
+    '\u04B0лытау':    'Область Улытау',  // Ұлытау (казахский)
+};
+
 // Маппинг для плана 4: ORDER BY ID (01..20) → название региона на сайте
 const ORACLE_ROW_TO_REGION_PLAN4 = [
     null,                                   // 0 — не используется
@@ -1273,21 +1312,34 @@ app.post('/api/plans/oracle-push', async (req, res) => {
             return res.status(403).json({ error: 'Доступ запрещён' });
         }
 
-        // Определяем для какого плана данные (по умолчанию — план 2, для обратной совместимости)
-        const targetPlan = parseInt(planId) === 4 ? 4 : 2;
-        const rowMapping = targetPlan === 4 ? ORACLE_ROW_TO_REGION_PLAN4 : ORACLE_ROW_TO_REGION;
-        const cacheTable = targetPlan === 4 ? 'oracle_plan4_cache' : 'oracle_plan2_cache';
+        const targetPlan = parseInt(planId) || 2;
+        const cacheTable = `oracle_plan${targetPlan}_cache`;
 
         let planSource = {};
 
         if (oracleRows && Array.isArray(oracleRows)) {
-            for (const item of oracleRows) {
-                const regionName = rowMapping[item.row];
-                if (!regionName) {
-                    console.warn(`⚠️ oracle-push plan${targetPlan}: строка ${item.row} не имеет маппинга`);
-                    continue;
+            if (targetPlan === 5) {
+                // План 5: элементы содержат regName (текстовое название из Oracle)
+                for (const item of oracleRows) {
+                    const key = (item.regName || '').trim();
+                    const regionName = ORACLE_REGNAME_TO_REGION_PLAN5[key];
+                    if (!regionName) {
+                        console.warn(`⚠️ oracle-push plan5: нет маппинга для "${key}"`);
+                        continue;
+                    }
+                    planSource[regionName] = parseFloat(item.proc) || 0;
                 }
-                planSource[regionName] = parseFloat(item.proc) || 0;
+            } else {
+                // Планы 2, 4: элементы содержат row (позицию)
+                const rowMapping = targetPlan === 4 ? ORACLE_ROW_TO_REGION_PLAN4 : ORACLE_ROW_TO_REGION;
+                for (const item of oracleRows) {
+                    const regionName = rowMapping[item.row];
+                    if (!regionName) {
+                        console.warn(`⚠️ oracle-push plan${targetPlan}: строка ${item.row} не имеет маппинга`);
+                        continue;
+                    }
+                    planSource[regionName] = parseFloat(item.proc) || 0;
+                }
             }
         } else if (legacySource && typeof legacySource === 'object') {
             planSource = legacySource;
@@ -1367,6 +1419,33 @@ app.get('/api/plans/oracle-plan4', authenticateToken, async (req, res) => {
 
     } catch (error) {
         console.error('❌ oracle-plan4 ошибка:', error.message);
+        res.status(500).json({ error: 'Ошибка при чтении кэша Oracle' });
+    }
+});
+
+/**
+ * GET /api/plans/oracle-plan5
+ * Возвращает закэшированные данные плана 5 из Oracle (INSPECT/OCH*100).
+ */
+app.get('/api/plans/oracle-plan5', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT data, fetched_at FROM oracle_plan5_cache WHERE id = 1`
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ success: true, found: false, data: {}, fetchedAt: null });
+        }
+
+        res.json({
+            success: true,
+            found: true,
+            data: result.rows[0].data,
+            fetchedAt: result.rows[0].fetched_at
+        });
+
+    } catch (error) {
+        console.error('❌ oracle-plan5 ошибка:', error.message);
         res.status(500).json({ error: 'Ошибка при чтении кэша Oracle' });
     }
 });
