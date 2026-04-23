@@ -25,8 +25,8 @@ async function generateForm1Document(data) {
     const day = headerData.input_0 || '__';
     const year = headerData.input_1 || '2024';
     const orderNumber = headerData.input_2 || '_______';
-    const reportDate = sanitizeXml(headerData.input_3) || '________';
-    const reportYear = sanitizeXml(headerData.input_4) || '__';
+    const reportQuarter = sanitizeXml(headerData.input_3) || '__';
+    const reportYear = sanitizeXml(headerData.input_4) || '2025';
     const orgName = sanitizeXml(headerData.input_5) || '____________________';
     
     const doc = new Document({
@@ -78,7 +78,7 @@ async function generateForm1Document(data) {
                 }),
                 new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: `по состоянию на ${reportDate} 20${reportYear} года ${orgName}`, size: 22 })]
+                    children: [new TextRun({ text: `по состоянию на ${reportQuarter} квартал ${reportYear} года ${orgName}`, size: 22 })]
                 }),
                 new Paragraph({
                     alignment: AlignmentType.CENTER,
@@ -280,8 +280,8 @@ async function generateForm4Document(data) {
     const headerData = data.forms.form4.header;
     const tables = data.forms.form4.tables;
     
-    const reportDate = sanitizeXml(headerData.input_0) || '________';
-    const reportYear = sanitizeXml(headerData.input_1) || '__';
+    const reportQuarter = sanitizeXml(headerData.input_0) || '__';
+    const reportYear = sanitizeXml(headerData.input_1) || '2025';
     const orgName = sanitizeXml(headerData.input_2) || '____________________';
     
     const sections = [
@@ -303,7 +303,7 @@ async function generateForm4Document(data) {
         }),
         new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: `по состоянию на ${reportDate} 20${reportYear} года ${orgName}`, size: 22 })]
+            children: [new TextRun({ text: `по состоянию на ${reportQuarter} квартал ${reportYear} года ${orgName}`, size: 22 })]
         }),
         new Paragraph({
             alignment: AlignmentType.CENTER,

@@ -195,6 +195,32 @@ function clearServerFiles() {
     Object.keys(filesToDelete).forEach(k => delete filesToDelete[k]);
 }
 
+// Очистить файлы только для конкретной формы (например form1-)
+function clearFormFiles(formPrefix) {
+    if (!formPrefix) return;
+
+    const startsWithPrefix = key => String(key || '').startsWith(formPrefix);
+
+    Object.keys(sectionFiles).forEach(key => {
+        if (startsWithPrefix(key)) delete sectionFiles[key];
+    });
+    Object.keys(serverFiles).forEach(key => {
+        if (startsWithPrefix(key)) delete serverFiles[key];
+    });
+    Object.keys(filesToDelete).forEach(key => {
+        if (startsWithPrefix(key)) delete filesToDelete[key];
+    });
+
+    document.querySelectorAll('tbody[id]').forEach(tbody => {
+        if (!String(tbody.id).startsWith(formPrefix)) return;
+        tbody.querySelectorAll('tr[data-row-id]').forEach(tr => {
+            const key = tbody.id + '__' + tr.dataset.rowId;
+            const cell = tr.querySelector('.file-cell');
+            if (cell) renderRowFiles(key, cell);
+        });
+    });
+}
+
 function getAllFiles() { return sectionFiles; }
 function getFilesToDelete() { return filesToDelete; }
 
@@ -231,6 +257,7 @@ window.fileHandler = {
     getFilesToDelete,
     clearAllFiles,
     clearServerFiles,
+    clearFormFiles,
     restoreServerFiles,
     initRowFileUpload,
     removeRowFiles,

@@ -61,6 +61,9 @@ function checkAuth() {
             if (data.user.organization) {
                 fillOrganizationFields(data.user.organization);
             }
+
+            // Полностью отключаем локальные черновики старой модели
+            clearLegacyDraftStorage();
         } else {
             throw new Error('User data not found');
         }
@@ -93,6 +96,59 @@ function fillOrganizationFields(organization) {
     
     // УБРАНО: Автозаполнение истцов и ответчиков
     // Теперь только поле организации заполняется автоматически
+}
+
+const INDEX1_FORM_NUMBERS = [1, 2, 3, 4];
+const INDEX1_PERIOD_PREFS_KEY = 'index1_period_prefs_v1';
+const ROW_META_KEYS = {
+    isNew: 'rowNew',
+    editing: 'rowEditing',
+    version: 'rowVersion',
+    original: 'originalCells'
+};
+
+function clearLegacyDraftStorage() {
+    localStorage.removeItem('formsRetainedState');
+    localStorage.removeItem('mtszn_forms_data');
+    localStorage.removeItem('mtszn_forms_timestamp');
+    localStorage.removeItem('mtszn_submissions');
+}
+
+function readPeriodPreferences() {
+    try {
+        const raw = localStorage.getItem(INDEX1_PERIOD_PREFS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function writePeriodPreferences(nextPrefs) {
+    localStorage.setItem(INDEX1_PERIOD_PREFS_KEY, JSON.stringify(nextPrefs || {}));
+}
+
+function saveFormPeriodPreference(formNumber, period) {
+    const prefs = readPeriodPreferences();
+    prefs[`form${formNumber}`] = {
+        year: period.year,
+        quarter: period.quarter
+    };
+    writePeriodPreferences(prefs);
+}
+
+function applyStoredPeriodPreferences() {
+    const prefs = readPeriodPreferences();
+    INDEX1_FORM_NUMBERS.forEach(formNumber => {
+        const saved = prefs[`form${formNumber}`];
+        if (!saved) return;
+        if (!Number.isInteger(saved.year) || !Number.isInteger(saved.quarter)) return;
+        setFormPeriod(formNumber, {
+            year: saved.year,
+            quarter: saved.quarter
+        });
+    });
 }
 
 // УДАЛЕНО: Функция observeNewRows больше не нужна
@@ -149,8 +205,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     initTabs();
     initAddRowButtons();
-    initAutoSave();
-    loadSavedData(); // Загружаем из localStorage
+    initRowActions();
+    initPeriodPreferenceHandlers();
+    applyStoredPeriodPreferences();
     loadFormsFromServer(); // Загружаем с сервера
     initButtons();
 });
@@ -162,60 +219,179 @@ async function loadFormsFromServer() {
         console.log('⚠️ Нет токена, пропускаем загрузку с сервера');
         return;
     }
-    
-    console.log('📥 Начинаем загрузку форм с сервера...');
-    
-    // Очищаем серверные файлы перед загрузкой
+
+    console.log('📥 Начинаем загрузку форм index1/v2...');
+
     if (window.fileHandler && window.fileHandler.clearServerFiles) {
         window.fileHandler.clearServerFiles();
     }
-    
-    // Загружаем каждую форму
-    for (let formNum = 1; formNum <= 4; formNum++) {
-        try {
-            const response = await fetch(`/api/forms/${formNum}`, {
+
+    for (const formNum of INDEX1_FORM_NUMBERS) {
+        await loadFormPeriodFromServer(formNum);
+    }
+
+    console.log('✅ Загрузка index1/v2 завершена');
+}
+
+function getFormPeriod(formNumber) {
+    const section = document.getElementById(`form${formNumber}`);
+    if (!section) {
+        const now = new Date();
+        return { quarter: Math.floor(now.getMonth() / 3) + 1, year: now.getFullYear() };
+    }
+
+    const numericInputs = section.querySelectorAll('.form-meta input[type="number"]');
+    const quarter = Number(numericInputs[0]?.value);
+    const year = Number(numericInputs[1]?.value);
+
+    const now = new Date();
+    return {
+        quarter: Number.isInteger(quarter) && quarter >= 1 && quarter <= 4
+            ? quarter
+            : Math.floor(now.getMonth() / 3) + 1,
+        year: Number.isInteger(year) && year >= 2020 && year <= 2100
+            ? year
+            : now.getFullYear()
+    };
+}
+
+function setFormPeriod(formNumber, period) {
+    const section = document.getElementById(`form${formNumber}`);
+    if (!section) return;
+    const numericInputs = section.querySelectorAll('.form-meta input[type="number"]');
+    if (numericInputs[0]) numericInputs[0].value = period.quarter;
+    if (numericInputs[1]) numericInputs[1].value = period.year;
+}
+
+function initPeriodPreferenceHandlers() {
+    INDEX1_FORM_NUMBERS.forEach(formNumber => {
+        const section = document.getElementById(`form${formNumber}`);
+        if (!section) return;
+        const numericInputs = section.querySelectorAll('.form-meta input[type="number"]');
+        const quarterInput = numericInputs[0];
+        const yearInput = numericInputs[1];
+        const handler = () => {
+            const period = getFormPeriod(formNumber);
+            saveFormPeriodPreference(formNumber, period);
+        };
+        if (quarterInput) {
+            quarterInput.addEventListener('change', handler);
+            quarterInput.addEventListener('input', handler);
+        }
+        if (yearInput) {
+            yearInput.addEventListener('change', handler);
+            yearInput.addEventListener('input', handler);
+        }
+    });
+}
+
+async function loadActiveFormPeriod() {
+    const formNumber = Number(getCurrentFormNumber());
+    if (!Number.isInteger(formNumber) || !INDEX1_FORM_NUMBERS.includes(formNumber)) {
+        showNotification('Выберите форму 1-4', 'error');
+        return;
+    }
+    await loadFormPeriodFromServer(formNumber, true);
+}
+
+async function loadFormPeriodFromServer(formNumber, showToast = false) {
+    const token = localStorage.getItem('accessToken');
+    const period = getFormPeriod(formNumber);
+
+    try {
+        const response = await fetch(
+            `/api/index1/forms/${formNumber}?year=${period.year}&quarter=${period.quarter}`,
+            {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
-            });
-            
-            const data = await response.json();
-            console.log(`📋 Форма ${formNum}:`, data);
-            
-            if (data.success && data.found && data.formData) {
-                console.log(`✅ Восстанавливаем форму ${formNum}`);
-                restoreFormData(`form${formNum}`, data.formData);
-                if (data.attachedFiles && window.fileHandler) {
-                    window.fileHandler.restoreServerFiles(data.attachedFiles);
-                }
-                // Раз данные есть в БД — retained state больше не нужен
-                localStorage.removeItem('formsRetainedState');
-            } else {
-                console.log(`ℹ️ Форма ${formNum} не найдена на сервере`);
             }
-        } catch (err) {
-            console.error(`❌ Ошибка загрузки формы ${formNum}:`, err);
-        }
-    }
-    
-    console.log('✅ Загрузка форм завершена');
+        );
+        const payload = await response.json();
 
-    // Если пользователь удалил ответ и перешёл на другую страницу —
-    // восстанавливаем форму и файлы из localStorage
-    const retainedRaw = localStorage.getItem('formsRetainedState');
-    if (retainedRaw) {
-        try {
-            const retained = JSON.parse(retainedRaw);
-            if (retained.formData) {
-                restoreAllFormsData(retained.formData);
-            }
-            if (retained.serverFiles && window.fileHandler) {
-                window.fileHandler.restoreServerFiles(retained.serverFiles);
-            }
-            console.log('📦 Восстановлено из localStorage (retained state)');
-        } catch (e) {
-            console.warn('Ошибка восстановления из localStorage:', e);
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
         }
+
+        if (window.fileHandler?.clearFormFiles) {
+            window.fileHandler.clearFormFiles(`form${formNumber}-`);
+        }
+        applyIndex1PayloadToForm(formNumber, payload);
+        saveFormPeriodPreference(formNumber, period);
+        if (showToast) {
+            showNotification(`Загружен ${payload.quarter} квартал ${payload.year} г. (форма ${formNumber})`, 'success');
+        }
+    } catch (err) {
+        console.error(`❌ Ошибка загрузки формы ${formNumber}:`, err);
+        showNotification(`Ошибка загрузки формы ${formNumber}: ${err.message}`, 'error');
+    }
+}
+
+function applyIndex1PayloadToForm(formNumber, payload) {
+    const section = document.getElementById(`form${formNumber}`);
+    if (!section) return;
+
+    setFormPeriod(formNumber, { quarter: payload.quarter, year: payload.year });
+    saveFormPeriodPreference(formNumber, { quarter: payload.quarter, year: payload.year });
+    section.dataset.headerVersion = String(payload.headerVersion || 0);
+    section.dataset.loadedPeriod = `${payload.year}-${payload.quarter}`;
+
+    const tables = {};
+    section.querySelectorAll('tbody[id]').forEach(tbody => {
+        const tableRows = (payload.rowsByTable && payload.rowsByTable[tbody.id]) || [];
+        tables[tbody.id] = {
+            rows: tableRows.map(r => Array.isArray(r.cells) ? r.cells : []),
+            rowIds: tableRows.map(r => r.id)
+        };
+    });
+
+    restoreFormData(`form${formNumber}`, {
+        header: payload.header || {},
+        tables
+    });
+
+    section.querySelectorAll('tbody[id]').forEach(tbody => {
+        const tableRows = (payload.rowsByTable && payload.rowsByTable[tbody.id]) || [];
+        const trs = Array.from(tbody.querySelectorAll('tr'));
+
+        if (tableRows.length === 0) {
+            if (trs[0]) {
+                setRowAsNewDraft(trs[0], tbody.id);
+            }
+            updateRemoveButtonState(tbody.id);
+            return;
+        }
+
+        trs.forEach((tr, index) => {
+            const row = tableRows[index];
+            if (!row) {
+                tr.remove();
+                return;
+            }
+            tr.dataset.rowId = row.id;
+            tr.dataset[ROW_META_KEYS.version] = String(row.version || 1);
+            tr.dataset[ROW_META_KEYS.isNew] = '0';
+            tr.dataset[ROW_META_KEYS.editing] = '0';
+            tr.dataset.tableId = tbody.id;
+            tr.dataset.formNumber = String(formNumber);
+            setRowEditable(tr, false);
+            ensureRowActionsCell(tbody.id, tr);
+            refreshRowActionButtons(tr);
+        });
+
+        renumberRows(tbody.id);
+        updateRemoveButtonState(tbody.id);
+    });
+
+    if (payload.attachedFiles && window.fileHandler?.restoreServerFiles) {
+        const formPrefix = `form${formNumber}-`;
+        const filteredFiles = {};
+        Object.keys(payload.attachedFiles).forEach(key => {
+            if (String(key).startsWith(formPrefix)) {
+                filteredFiles[key] = payload.attachedFiles[key];
+            }
+        });
+        window.fileHandler.restoreServerFiles(filteredFiles);
     }
 }
 
@@ -240,51 +416,63 @@ function restoreFormData(formId, formData) {
     });
     
     // Восстанавливаем таблицы
-    for (const tableId in formData.tables) {
-        const tbody = document.getElementById(tableId);
-        if (!tbody) {
-            console.warn(`⚠️ Таблица ${tableId} не найдена`);
-            continue;
-        }
-        
-        const savedTable = formData.tables[tableId];
-        // Поддержка старого формата (массив) и нового (объект с rows)
-        const savedRows = savedTable.rows || savedTable;
-        
-        console.log(`  📊 Таблица ${tableId}: ${savedRows.length} строк`);
-        
-        // Добавляем недостающие строки
-        while (tbody.querySelectorAll('tr').length < savedRows.length) {
-            addRow(tableId);
-        }
-        
-        // Заполняем данные
+    section.querySelectorAll('tbody[id]').forEach(tbody => {
+        const tableId = tbody.id;
+        const savedTable = (formData.tables && formData.tables[tableId]) || { rows: [] };
+        const savedRows = Array.isArray(savedTable.rows || savedTable) ? (savedTable.rows || savedTable) : [];
         const savedRowIds = savedTable.rowIds || [];
-        const rows = tbody.querySelectorAll('tr');
-        savedRows.forEach((rowData, rowIndex) => {
-            if (!rows[rowIndex]) return;
 
-            // Восстанавливаем rowId для привязки файлов
-            if (savedRowIds[rowIndex]) {
-                rows[rowIndex].dataset.rowId = savedRowIds[rowIndex];
-                const fileCell = rows[rowIndex].querySelector('.file-cell');
-                if (fileCell && window.fileHandler) {
-                    window.fileHandler.initRowFileUpload(tableId, savedRowIds[rowIndex], fileCell);
+        // Всегда держим минимум одну строку
+        const targetCount = Math.max(savedRows.length, 1);
+
+        while (tbody.querySelectorAll('tr').length < targetCount) {
+            addRow(tableId, { silent: true, focus: false, markAsNew: true });
+        }
+        while (tbody.querySelectorAll('tr').length > targetCount) {
+            const lastRow = tbody.querySelector('tr:last-child');
+            if (!lastRow) break;
+            const rowId = lastRow.dataset.rowId;
+            if (rowId && window.fileHandler) {
+                window.fileHandler.removeRowFiles(tableId, rowId);
+            }
+            lastRow.remove();
+        }
+
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.forEach((row, rowIndex) => {
+            // Сначала очищаем все поля
+            row.querySelectorAll('textarea, input:not([type="file"])').forEach(input => {
+                input.value = '';
+            });
+
+            const rowData = savedRows[rowIndex] || null;
+            if (rowData && Array.isArray(rowData)) {
+                // Восстанавливаем rowId для привязки файлов
+                if (savedRowIds[rowIndex]) {
+                    row.dataset.rowId = savedRowIds[rowIndex];
                 }
+                const fileCell = row.querySelector('.file-cell');
+                if (fileCell && window.fileHandler && row.dataset.rowId) {
+                    window.fileHandler.initRowFileUpload(tableId, row.dataset.rowId, fileCell);
+                }
+
+                // Заполняем ячейки, пропуская служебные колонки
+                let dataIdx = 0;
+                row.querySelectorAll('td').forEach(td => {
+                    if (td.classList.contains('file-cell') || td.classList.contains('row-actions-cell')) return;
+                    const input = td.querySelector('textarea, input:not([type="file"])');
+                    if (input && rowData[dataIdx] !== undefined) {
+                        input.value = rowData[dataIdx];
+                    }
+                    dataIdx++;
+                });
             }
 
-            // Заполняем ячейки, пропуская file-cell
-            let dataIdx = 0;
-            rows[rowIndex].querySelectorAll('td').forEach(td => {
-                if (td.classList.contains('file-cell')) return;
-                const input = td.querySelector('textarea, input:not([type="file"])');
-                if (input && rowData[dataIdx] !== undefined) {
-                    input.value = rowData[dataIdx];
-                }
-                dataIdx++;
-            });
+            ensureRowActionsCell(tableId, row);
         });
-    }
+
+        renumberRows(tableId);
+    });
     
     console.log(`✅ Форма ${formId} восстановлена`);
 }
@@ -320,12 +508,193 @@ function initTabs() {
 // ДОБАВЛЕНИЕ СТРОК В ТАБЛИЦЫ
 // =====================================================
 
+function initRowActions() {
+    document.querySelectorAll('table .row-actions-header').forEach(el => el.remove());
+    document.querySelectorAll('table .row-actions-num').forEach(el => el.remove());
+    document.querySelectorAll('tbody[id] tr').forEach(tr => {
+        ensureRowActionsCell(tr.closest('tbody').id, tr);
+        setRowAsNewDraft(tr, tr.closest('tbody').id);
+    });
+}
+
+function ensureActionsHeaderForTable(tableId) {
+    const tbody = document.getElementById(tableId);
+    const table = tbody?.closest('table');
+    if (!table) return;
+
+    const thead = table.querySelector('thead');
+    if (!thead || thead.querySelector('.row-actions-header')) return;
+
+    const firstHeaderRow = thead.querySelector('tr:first-child');
+    if (firstHeaderRow) {
+        const th = document.createElement('th');
+        th.className = 'row-actions-header';
+        th.textContent = 'Действия';
+        const fileHeader = firstHeaderRow.querySelector('.file-col-header');
+        if (fileHeader) firstHeaderRow.insertBefore(th, fileHeader);
+        else firstHeaderRow.appendChild(th);
+    }
+
+    const colNumbersRow = thead.querySelector('tr.col-numbers');
+    if (colNumbersRow && !colNumbersRow.querySelector('.row-actions-num')) {
+        const td = document.createElement('td');
+        td.className = 'row-actions-num';
+        const visibleCols = colNumbersRow.querySelectorAll('td:not(.file-col-num)').length;
+        td.textContent = String(visibleCols + 1);
+        const fileNum = colNumbersRow.querySelector('.file-col-num');
+        if (fileNum) colNumbersRow.insertBefore(td, fileNum);
+        else colNumbersRow.appendChild(td);
+    }
+}
+
+function ensureRowActionsCell(tableId, row) {
+    if (!row) return;
+    ensureActionsHeaderForTable(tableId);
+
+    let actionCell = row.querySelector('.row-actions-cell');
+    if (!actionCell) {
+        actionCell = document.createElement('td');
+        actionCell.className = 'row-actions-cell';
+        const fileCell = row.querySelector('.file-cell');
+        if (fileCell) row.insertBefore(actionCell, fileCell);
+        else row.appendChild(actionCell);
+    }
+
+    actionCell.innerHTML = `
+        <div class="row-actions">
+            <button type="button" class="row-action-btn" data-action="edit">Ред.</button>
+            <button type="button" class="row-action-btn" data-action="save" hidden>Сохр.</button>
+            <button type="button" class="row-action-btn" data-action="cancel" hidden>Отмена</button>
+            <button type="button" class="row-action-btn" data-action="delete">Удалить</button>
+        </div>
+    `;
+
+    const canDeleteRows = !!document.querySelector(`.add-row-btn[data-table="${tableId}"]`);
+    const deleteBtn = actionCell.querySelector('[data-action="delete"]');
+    if (deleteBtn && !canDeleteRows) {
+        deleteBtn.hidden = true;
+    }
+
+    actionCell.querySelector('[data-action="edit"]').addEventListener('click', () => startRowEdit(row));
+    actionCell.querySelector('[data-action="save"]').addEventListener('click', () => saveRowToServer(tableId, row));
+    actionCell.querySelector('[data-action="cancel"]').addEventListener('click', () => cancelRowEdit(tableId, row));
+    if (deleteBtn && !deleteBtn.hidden) {
+        deleteBtn.addEventListener('click', () => deleteRowFromServer(tableId, row));
+    }
+}
+
+function setRowEditable(row, editable) {
+    row.querySelectorAll('textarea, input:not([type="file"])').forEach(el => {
+        el.disabled = !editable;
+        if (editable) {
+            el.removeAttribute('readonly');
+            el.style.background = '';
+            el.style.cursor = '';
+        } else {
+            el.setAttribute('readonly', 'readonly');
+            el.style.background = '#f8fafc';
+            el.style.cursor = 'not-allowed';
+        }
+    });
+}
+
+function setRowAsNewDraft(row, tableId) {
+    if (!row) return;
+    if (!row.dataset.rowId && window.fileHandler?.generateRowId) {
+        row.dataset.rowId = window.fileHandler.generateRowId();
+    }
+    row.dataset[ROW_META_KEYS.version] = '0';
+    row.dataset[ROW_META_KEYS.isNew] = '1';
+    row.dataset[ROW_META_KEYS.editing] = '1';
+    row.dataset.tableId = tableId;
+    row.dataset.formNumber = String(getFormNumberByTableId(tableId));
+    setRowEditable(row, true);
+    ensureRowActionsCell(tableId, row);
+    refreshRowActionButtons(row);
+}
+
+function refreshRowActionButtons(row) {
+    const editBtn = row.querySelector('.row-action-btn[data-action="edit"]');
+    const saveBtn = row.querySelector('.row-action-btn[data-action="save"]');
+    const cancelBtn = row.querySelector('.row-action-btn[data-action="cancel"]');
+    if (!editBtn || !saveBtn || !cancelBtn) return;
+
+    const isEditing = row.dataset[ROW_META_KEYS.editing] === '1';
+    editBtn.hidden = isEditing;
+    saveBtn.hidden = !isEditing;
+    cancelBtn.hidden = !isEditing;
+}
+
+function getFormNumberByTableId(tableId) {
+    const match = String(tableId || '').match(/^form(\d+)-/);
+    return match ? Number(match[1]) : null;
+}
+
+function getRowData(row) {
+    const values = [];
+    row.querySelectorAll('td').forEach(td => {
+        if (td.classList.contains('file-cell') || td.classList.contains('row-actions-cell')) return;
+        const input = td.querySelector('textarea, input:not([type="file"])');
+        if (input) values.push(input.value);
+        else values.push(td.textContent.trim());
+    });
+    return values;
+}
+
+function applyRowData(row, rowData) {
+    if (!Array.isArray(rowData)) return;
+    let idx = 0;
+    row.querySelectorAll('td').forEach(td => {
+        if (td.classList.contains('file-cell') || td.classList.contains('row-actions-cell')) return;
+        const input = td.querySelector('textarea, input:not([type="file"])');
+        if (input && rowData[idx] !== undefined) {
+            input.value = rowData[idx];
+        }
+        idx++;
+    });
+}
+
+function startRowEdit(row) {
+    row.dataset[ROW_META_KEYS.original] = JSON.stringify(getRowData(row));
+    row.dataset[ROW_META_KEYS.editing] = '1';
+    setRowEditable(row, true);
+    refreshRowActionButtons(row);
+}
+
+function cancelRowEdit(tableId, row) {
+    const isNew = row.dataset[ROW_META_KEYS.isNew] === '1';
+    if (isNew) {
+        row.remove();
+        ensureAtLeastOneRow(tableId);
+        renumberRows(tableId);
+        updateRemoveButtonState(tableId);
+        return;
+    }
+
+    try {
+        const original = JSON.parse(row.dataset[ROW_META_KEYS.original] || '[]');
+        applyRowData(row, original);
+    } catch (e) {
+        console.warn('Не удалось восстановить исходные данные строки:', e);
+    }
+    row.dataset[ROW_META_KEYS.editing] = '0';
+    setRowEditable(row, false);
+    refreshRowActionButtons(row);
+}
+
+function ensureAtLeastOneRow(tableId) {
+    const tbody = document.getElementById(tableId);
+    if (!tbody) return;
+    if (tbody.querySelectorAll('tr').length > 0) return;
+    addRow(tableId, { silent: true, focus: false, markAsNew: true });
+}
+
 function initAddRowButtons() {
     // Кнопки добавления строк
     document.querySelectorAll('.add-row-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const tableId = btn.dataset.table;
-            addRow(tableId);
+            addRow(tableId, { silent: false, focus: true, markAsNew: true });
             updateRemoveButtonState(tableId);
         });
     });
@@ -345,7 +714,8 @@ function initAddRowButtons() {
     });
 }
 
-function addRow(tableId) {
+function addRow(tableId, options = {}) {
+    const { silent = false, focus = true, markAsNew = true } = options;
     const tbody = document.getElementById(tableId);
     if (!tbody) return;
 
@@ -371,14 +741,25 @@ function addRow(tableId) {
         }
     }
 
+    ensureRowActionsCell(tableId, newRow);
+    if (markAsNew) {
+        setRowAsNewDraft(newRow, tableId);
+    } else {
+        newRow.dataset[ROW_META_KEYS.isNew] = '0';
+        newRow.dataset[ROW_META_KEYS.editing] = '0';
+        newRow.dataset[ROW_META_KEYS.version] = newRow.dataset[ROW_META_KEYS.version] || '1';
+        setRowEditable(newRow, false);
+        refreshRowActionButtons(newRow);
+    }
+
     tbody.appendChild(newRow);
     renumberRows(tableId);
 
     newRow.style.animation = 'fadeIn 0.3s ease';
     const firstTextarea = newRow.querySelector('textarea');
-    if (firstTextarea) firstTextarea.focus();
+    if (focus && firstTextarea) firstTextarea.focus();
 
-    showNotification('Строка добавлена', 'success');
+    if (!silent) showNotification('Строка добавлена', 'success');
 }
 
 function removeRow(tableId) {
@@ -393,6 +774,13 @@ function removeRow(tableId) {
     }
 
     const lastRow = rows[rows.length - 1];
+
+    // Сохранённые строки удаляем только через кнопку "Удалить" в самой строке
+    if (lastRow.dataset[ROW_META_KEYS.isNew] !== '1') {
+        showNotification('Сохранённые строки удаляются кнопкой "Удалить" в строке', 'info');
+        return;
+    }
+
     const rowId = lastRow.dataset.rowId;
 
     // Удаляем файлы строки из хранилища
@@ -430,6 +818,137 @@ function updateRemoveButtonState(tableId) {
     
     if (removeBtn) {
         removeBtn.disabled = rowCount <= 1;
+    }
+}
+
+async function saveRowToServer(tableId, row, options = {}) {
+    const { silent = false } = options;
+    const token = localStorage.getItem('accessToken');
+    const formNumber = getFormNumberByTableId(tableId);
+    if (!formNumber) {
+        showNotification('Не удалось определить форму для строки', 'error');
+        return;
+    }
+    const period = getFormPeriod(formNumber);
+    const cells = getRowData(row);
+    const section = document.getElementById(`form${formNumber}`);
+
+    const isNew = row.dataset[ROW_META_KEYS.isNew] === '1';
+    const loadedPeriod = section?.dataset.loadedPeriod;
+    const currentPeriod = `${period.year}-${period.quarter}`;
+    if (!isNew && loadedPeriod && loadedPeriod !== currentPeriod) {
+        if (!silent) showNotification('Сначала загрузите выбранный квартал формы', 'info');
+        return;
+    }
+    const endpoint = isNew
+        ? `/api/index1/forms/${formNumber}/rows`
+        : `/api/index1/forms/${formNumber}/rows/${row.dataset.rowId}`;
+    const method = isNew ? 'POST' : 'PUT';
+    const payload = {
+        year: period.year,
+        quarter: period.quarter,
+        tableId,
+        cells
+    };
+    if (!isNew) {
+        payload.expectedVersion = Number(row.dataset[ROW_META_KEYS.version] || 0);
+    } else if (row.dataset.rowId) {
+        payload.rowId = row.dataset.rowId;
+    }
+
+    try {
+        const response = await fetch(endpoint, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+
+        if (response.status === 409) {
+            if (!silent) showNotification('Конфликт версии строки. Перезагрузите квартал формы.', 'error');
+            return;
+        }
+        if (!response.ok || !result.success) {
+            throw new Error(result.error || `HTTP ${response.status}`);
+        }
+
+        const saved = result.row;
+        row.dataset.rowId = saved.id;
+        row.dataset[ROW_META_KEYS.version] = String(saved.version || 1);
+        row.dataset[ROW_META_KEYS.isNew] = '0';
+        row.dataset[ROW_META_KEYS.editing] = '0';
+        row.dataset.formNumber = String(formNumber);
+        row.dataset.tableId = tableId;
+        setRowEditable(row, false);
+        refreshRowActionButtons(row);
+
+        if (section) section.dataset.loadedPeriod = `${period.year}-${period.quarter}`;
+
+        if (!silent) showNotification('Строка сохранена', 'success');
+    } catch (err) {
+        console.error('Ошибка сохранения строки:', err);
+        if (!silent) showNotification(`Ошибка сохранения строки: ${err.message}`, 'error');
+    }
+}
+
+async function deleteRowFromServer(tableId, row) {
+    const token = localStorage.getItem('accessToken');
+    const formNumber = getFormNumberByTableId(tableId);
+    if (!formNumber) return;
+
+    const rowId = row.dataset.rowId;
+    const isNew = row.dataset[ROW_META_KEYS.isNew] === '1';
+    if (isNew || !rowId) {
+        row.remove();
+        ensureAtLeastOneRow(tableId);
+        renumberRows(tableId);
+        updateRemoveButtonState(tableId);
+        showNotification('Черновая строка удалена', 'success');
+        return;
+    }
+
+    const confirmed = confirm('Удалить эту строку?');
+    if (!confirmed) return;
+
+    const period = getFormPeriod(formNumber);
+    try {
+        const response = await fetch(`/api/index1/forms/${formNumber}/rows/${rowId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                year: period.year,
+                quarter: period.quarter,
+                tableId,
+                expectedVersion: Number(row.dataset[ROW_META_KEYS.version] || 0)
+            })
+        });
+        const result = await response.json();
+
+        if (response.status === 409) {
+            showNotification('Конфликт версии при удалении. Обновите период формы.', 'error');
+            return;
+        }
+        if (!response.ok || !result.success) {
+            throw new Error(result.error || `HTTP ${response.status}`);
+        }
+
+        if (row.dataset.rowId && window.fileHandler) {
+            window.fileHandler.removeRowFiles(tableId, row.dataset.rowId);
+        }
+        row.remove();
+        ensureAtLeastOneRow(tableId);
+        renumberRows(tableId);
+        updateRemoveButtonState(tableId);
+        showNotification('Строка удалена', 'success');
+    } catch (err) {
+        console.error('Ошибка удаления строки:', err);
+        showNotification(`Ошибка удаления строки: ${err.message}`, 'error');
     }
 }
 
@@ -537,7 +1056,7 @@ function collectTableData(section) {
 
             const row = [];
             tr.querySelectorAll('td').forEach(td => {
-                if (td.classList.contains('file-cell')) return; // пропускаем колонку файлов
+                if (td.classList.contains('file-cell') || td.classList.contains('row-actions-cell')) return; // пропускаем служебные колонки
                 const input = td.querySelector('textarea, input:not([type="file"])');
                 if (input) {
                     row.push(input.value);
@@ -622,7 +1141,7 @@ function restoreAllFormsData(data) {
                     // Заполняем ячейки, пропуская file-cell
                     let dataIdx = 0;
                     trs[rowIndex].querySelectorAll('td').forEach(td => {
-                        if (td.classList.contains('file-cell')) return;
+                        if (td.classList.contains('file-cell') || td.classList.contains('row-actions-cell')) return;
                         const input = td.querySelector('textarea, input:not([type="file"])');
                         if (input && rowData[dataIdx] !== undefined) {
                             input.value = rowData[dataIdx];
@@ -640,8 +1159,11 @@ function restoreAllFormsData(data) {
 // =====================================================
 
 function initButtons() {
-    // Сохранить (черновик + отправка на сервер)
-    document.getElementById('saveAndSubmitBtn').addEventListener('click', saveAndSubmitAll);
+    const saveBtn = document.getElementById('saveAndSubmitBtn');
+    if (saveBtn) saveBtn.addEventListener('click', saveAndSubmitAll);
+
+    const loadPeriodBtn = document.getElementById('loadPeriodBtn');
+    if (loadPeriodBtn) loadPeriodBtn.addEventListener('click', loadActiveFormPeriod);
 }
 
 /**
@@ -654,32 +1176,87 @@ function getCurrentFormNumber() {
     return tabId.replace('form', '');
 }
 
+async function saveHeaderForForm(formNumber, options = {}) {
+    const { silent = false } = options;
+    const token = localStorage.getItem('accessToken');
+    const section = document.getElementById(`form${formNumber}`);
+    if (!section) return false;
+
+    const period = getFormPeriod(formNumber);
+    const header = collectHeaderData(section);
+    const expectedVersionRaw = section.dataset.headerVersion;
+    const expectedVersion = expectedVersionRaw != null && expectedVersionRaw !== ''
+        ? Number(expectedVersionRaw)
+        : null;
+
+    const payload = {
+        year: period.year,
+        quarter: period.quarter,
+        header
+    };
+    if (Number.isInteger(expectedVersion) && expectedVersion >= 0) {
+        payload.expectedVersion = expectedVersion;
+    }
+
+    const response = await fetch(`/api/index1/forms/${formNumber}/header`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+
+    if (response.status === 409) {
+        if (!silent) showNotification(`Конфликт шапки формы ${formNumber}. Перезагрузите период.`, 'error');
+        return false;
+    }
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `HTTP ${response.status}`);
+    }
+
+    section.dataset.headerVersion = String(result.version || 1);
+    return true;
+}
+
 /**
  * Сохранить черновик + отправить ВСЕ формы на сервер
  */
 async function saveAndSubmitAll() {
-    const data = collectFormData();
-    
-    // Валидация - проверяем, заполнено ли хоть что-то
-    const hasData = checkIfHasData(data);
-    
-    if (!hasData) {
-        showNotification('Пожалуйста, заполните хотя бы одну форму', 'error');
-        return;
-    }
-    
     const btn = document.getElementById('saveAndSubmitBtn');
     
     try {
-        // Показываем индикатор загрузки
         btn.innerHTML = '<span class="btn-icon">⏳</span> Сохранение...';
         btn.disabled = true;
-        
-        // 1. Сохраняем черновик локально
-        saveToLocalStorage();
-        
-        // 2. Сохраняем данные форм на сервер как JSON
-        await saveFormsAsJSON(data);
+
+        let headerSavedCount = 0;
+        for (const formNumber of INDEX1_FORM_NUMBERS) {
+            const saved = await saveHeaderForForm(formNumber, { silent: true });
+            if (saved) headerSavedCount++;
+        }
+
+        const pendingRows = Array.from(document.querySelectorAll('tbody[id] tr')).filter(tr => {
+            return tr.dataset[ROW_META_KEYS.editing] === '1' || tr.dataset[ROW_META_KEYS.isNew] === '1';
+        });
+
+        let rowSavedCount = 0;
+        for (const row of pendingRows) {
+            const tbody = row.closest('tbody');
+            if (!tbody) continue;
+            await saveRowToServer(tbody.id, row, { silent: true });
+            if (row.dataset[ROW_META_KEYS.editing] === '0' && row.dataset[ROW_META_KEYS.isNew] === '0') {
+                rowSavedCount++;
+            }
+        }
+
+        // Сохраняем/обновляем прикреплённые документы через legacy multipart API.
+        // Это нужно, потому что file-handler работает с attachments в documents.attached_files.
+        const allData = collectFormData();
+        const filesSavedCount = await saveFormsAsJSON(allData, { silent: true });
+
+        document.getElementById('successModal').classList.add('active');
+        showNotification(`Сохранено: шапки ${headerSavedCount}, строки ${rowSavedCount}, формы(файлы) ${filesSavedCount}`, 'success');
         
     } catch (error) {
         showNotification('Ошибка при сохранении. Попробуйте позже.', 'error');
@@ -691,7 +1268,8 @@ async function saveAndSubmitAll() {
 }
 
 // Новая функция: сохранение данных форм как JSON
-async function saveFormsAsJSON(data) {
+async function saveFormsAsJSON(data, options = {}) {
+    const { silent = false } = options;
     const token = localStorage.getItem('accessToken');
     let savedCount = 0;
     
@@ -781,16 +1359,16 @@ async function saveFormsAsJSON(data) {
         // Очищаем только новые файлы и применяем удаления
         window.fileHandler.clearAllFiles();
         
-        // Данные успешно сохранены — retained state больше не нужен
-        localStorage.removeItem('formsRetainedState');
-        
         // Перезагружаем файлы с сервера чтобы показать актуальное состояние
         await reloadFilesFromServer();
-        
-        // Показываем успех
-        document.getElementById('successModal').classList.add('active');
-        showNotification(`Сохранено форм: ${savedCount}`, 'success');
+
+        if (!silent) {
+            document.getElementById('successModal').classList.add('active');
+            showNotification(`Сохранено форм: ${savedCount}`, 'success');
+        }
     }
+
+    return savedCount;
 }
 
 // Перезагрузка файлов с сервера
@@ -1002,8 +1580,8 @@ async function loadFromServer(formId) {
 async function deleteMyResponse() {
     const confirmed = confirm(
         'Вы уверены, что хотите удалить свой ответ из общей базы?\n\n' +
-        'Данные в форме останутся заполненными, но больше не будут видны администратору.\n\n' +
-        'Чтобы снова отправить — нажмите «Сохранить».'
+        'Будут удалены строки и шапки из новой модели index1, а также legacy-записи.\n\n' +
+        'После удаления можно заполнить и сохранить заново.'
     );
     if (!confirmed) return;
 
@@ -1014,7 +1592,7 @@ async function deleteMyResponse() {
     btn.innerHTML = '<span class="btn-icon">⏳</span> Удаление...';
 
     try {
-        const response = await fetch('/api/forms/my', {
+        const response = await fetch('/api/index1/my', {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -1022,22 +1600,9 @@ async function deleteMyResponse() {
         const result = await response.json();
 
         if (response.ok && result.success) {
-            // Сохраняем снимок форм + метаданные файлов в localStorage
-            // чтобы восстановить после перезагрузки страницы
-            try {
-                const formSnapshot = collectFormData();
-                const fileSnapshot = (window.fileHandler && window.fileHandler.serverFiles)
-                    ? JSON.parse(JSON.stringify(window.fileHandler.serverFiles))
-                    : {};
-                localStorage.setItem('formsRetainedState', JSON.stringify({
-                    formData: formSnapshot,
-                    serverFiles: fileSnapshot
-                }));
-            } catch (e) {
-                console.warn('Не удалось сохранить состояние форм:', e);
-            }
-
-            showNotification('Ответ удалён из общей базы. Форма и файлы сохранены локально.', 'success');
+            clearLegacyDraftStorage();
+            await loadFormsFromServer();
+            showNotification('Ответ удалён. Можно начать заполнение заново.', 'success');
         } else {
             showNotification('Ошибка при удалении: ' + (result.error || 'неизвестная ошибка'), 'error');
         }

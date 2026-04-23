@@ -194,6 +194,15 @@ body {
     border-top-color: var(--primary);
 }
 
+.top-actions {
+    background: var(--bg-paper);
+    display: flex;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+
 /* =====================================================
    ОСНОВНОЙ КОНТЕЙНЕР
    ===================================================== */
@@ -547,6 +556,44 @@ body {
     background: transparent;
 }
 
+.row-actions-header,
+.row-actions-num,
+.row-actions-cell {
+    min-width: 120px;
+    width: 120px;
+    text-align: center;
+}
+
+.row-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.row-action-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 6px;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+
+.row-action-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.row-action-btn[data-action="delete"]:hover {
+    border-color: var(--error);
+    color: var(--error);
+}
+
+.row-action-btn[hidden] {
+    display: none !important;
+}
+
 /* =====================================================
    СНОСКА
    ===================================================== */
@@ -837,6 +884,7 @@ body {
 @media print {
     .header,
     .nav-tabs,
+    .top-actions,
     .actions,
     .footer,
     .add-row-btn {

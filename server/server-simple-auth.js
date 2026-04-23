@@ -45,6 +45,7 @@ const REGION_USERS = {
 const DB_FILE = path.join(__dirname, 'documents.json');
 const USERS_FILE = path.join(__dirname, 'users.json');
 const HISTORY_FILE = path.join(__dirname, 'plan_history.json');
+const INDEX1_STORE_FILE = path.join(__dirname, 'index1_store.json');
 
 // Создаём папку uploads если её нет
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -59,6 +60,10 @@ if (!fs.existsSync(DB_FILE)) {
 // Инициализируем файл истории
 if (!fs.existsSync(HISTORY_FILE)) {
     fs.writeFileSync(HISTORY_FILE, JSON.stringify({ snapshots: [] }, null, 2));
+}
+
+if (!fs.existsSync(INDEX1_STORE_FILE)) {
+    fs.writeFileSync(INDEX1_STORE_FILE, JSON.stringify({ headers: [], rows: [] }, null, 2));
 }
 
 // Инициализируем "базу данных" пользователей
@@ -116,6 +121,27 @@ function writeHistory(data) {
     fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
 }
 
+function readIndex1Store() {
+    try {
+        const raw = fs.readFileSync(INDEX1_STORE_FILE, 'utf8');
+        const parsed = JSON.parse(raw);
+        return {
+            headers: Array.isArray(parsed.headers) ? parsed.headers : [],
+            rows: Array.isArray(parsed.rows) ? parsed.rows : []
+        };
+    } catch (error) {
+        return { headers: [], rows: [] };
+    }
+}
+
+function writeIndex1Store(data) {
+    const safe = {
+        headers: Array.isArray(data.headers) ? data.headers : [],
+        rows: Array.isArray(data.rows) ? data.rows : []
+    };
+    fs.writeFileSync(INDEX1_STORE_FILE, JSON.stringify(safe, null, 2));
+}
+
 function readUsers() {
     try {
         const data = fs.readFileSync(USERS_FILE, 'utf8');
@@ -135,6 +161,249 @@ function generateId() {
 
 function generateToken() {
     return Math.random().toString(36).substr(2) + Date.now().toString(36);
+}
+
+const INDEX1_FORM_NUMBERS = new Set(['1', '2', '3', '4']);
+
+function getCurrentQuarter() {
+    return Math.floor(new Date().getMonth() / 3) + 1;
+}
+
+function parseIndex1Period(source = {}) {
+    const rawYear = source.year;
+    const rawQuarter = source.quarter;
+    const year = Number.isInteger(Number(rawYear)) ? Number(rawYear) : new Date().getFullYear();
+    const quarter = Number.isInteger(Number(rawQuarter)) ? Number(rawQuarter) : getCurrentQuarter();
+    if (!Number.isInteger(year) || year < 2020 || year > 2100) return null;
+    if (!Number.isInteger(quarter) || quarter < 1 || quarter > 4) return null;
+    return { year, quarter };
+}
+
+function normalizeHeaderData(headerData) {
+    const normalized = {};
+    if (!headerData || typeof headerData !== 'object') return normalized;
+    Object.keys(headerData).forEach(key => {
+        if (!/^input_\d+$/.test(key)) return;
+        normalized[key] = headerData[key] == null ? '' : String(headerData[key]);
+    });
+    return normalized;
+}
+
+function normalizeCells(cells) {
+    if (!Array.isArray(cells)) return [];
+    return cells.map(value => (value == null ? '' : String(value)));
+}
+
+function parseLegacyPeriodFromHeader(formNumber, headerData) {
+    const indexMap = {
+        '1': { quarter: 3, year: 4 },
+        '2': { quarter: 0, year: 1 },
+        '3': { quarter: 0, year: 1 },
+        '4': { quarter: 0, year: 1 }
+    };
+    const map = indexMap[String(formNumber)] || indexMap['1'];
+    const quarter = Number(headerData?.[`input_${map.quarter}`]);
+    const year = Number(headerData?.[`input_${map.year}`]);
+    if (!Number.isInteger(quarter) || quarter < 1 || quarter > 4) return null;
+    if (!Number.isInteger(year) || year < 2020 || year > 2100) return null;
+    return { year, quarter };
+}
+
+function extractLegacyRows(formData) {
+    const rows = [];
+    const tables = formData?.tables || {};
+    for (const [tableId, tableData] of Object.entries(tables)) {
+        const rawRows = Array.isArray(tableData?.rows)
+            ? tableData.rows
+            : Array.isArray(tableData) ? tableData : [];
+        const rowIds = Array.isArray(tableData?.rowIds) ? tableData.rowIds : [];
+
+        let rowOrder = 1;
+        rawRows.forEach((rawCells, idx) => {
+            const cells = normalizeCells(rawCells);
+            const hasData = cells.some(cell => String(cell || '').trim() !== '');
+            if (!hasData) return;
+            rows.push({
+                id: String(rowIds[idx] || '').trim(),
+                tableId,
+                rowOrder: rowOrder++,
+                cells
+            });
+        });
+    }
+    return rows;
+}
+
+function groupRowsByTable(rows) {
+    const grouped = {};
+    rows.forEach(row => {
+        if (!grouped[row.tableId]) grouped[row.tableId] = [];
+        grouped[row.tableId].push({
+            id: row.id,
+            rowOrder: row.rowOrder,
+            cells: Array.isArray(row.cells) ? row.cells : [],
+            version: row.version,
+            updatedAt: row.updatedAt,
+            updatedBy: row.updatedBy || row.createdBy || null
+        });
+    });
+    return grouped;
+}
+
+function loadIndex1PeriodDataFromStore(userId, formNumber, year, quarter) {
+    const store = readIndex1Store();
+    const header = store.headers.find(h =>
+        h.userId === userId &&
+        h.formNumber === formNumber &&
+        h.year === year &&
+        h.quarter === quarter
+    ) || null;
+
+    const rows = store.rows
+        .filter(r =>
+            r.userId === userId &&
+            r.formNumber === formNumber &&
+            r.year === year &&
+            r.quarter === quarter &&
+            !r.isDeleted
+        )
+        .sort((a, b) => {
+            if (a.tableId !== b.tableId) return a.tableId.localeCompare(b.tableId);
+            if (a.rowOrder !== b.rowOrder) return a.rowOrder - b.rowOrder;
+            return new Date(a.createdAt) - new Date(b.createdAt);
+        });
+
+    return {
+        found: !!header || rows.length > 0,
+        header: header?.headerData || {},
+        headerVersion: header?.version || 0,
+        headerUpdatedAt: header?.updatedAt || null,
+        rowsByTable: groupRowsByTable(rows)
+    };
+}
+
+function hasAnyIndex1DataInStore(userId, formNumber) {
+    const store = readIndex1Store();
+    const hasHeader = store.headers.some(h =>
+        h.userId === userId && h.formNumber === formNumber
+    );
+    if (hasHeader) return true;
+    return store.rows.some(r =>
+        r.userId === userId &&
+        r.formNumber === formNumber &&
+        !r.isDeleted
+    );
+}
+
+function bootstrapIndex1FromLegacyIfNeeded(user, formNumber) {
+    const db = readDB();
+    const legacyDoc = db.documents.find(d =>
+        d.userId === user.id &&
+        d.formNumber === formNumber &&
+        d.type === 'json'
+    );
+    if (!legacyDoc || !legacyDoc.formData) return null;
+
+    const header = normalizeHeaderData(legacyDoc.formData.header || {});
+    const legacyPeriod = parseLegacyPeriodFromHeader(formNumber, header);
+    if (!legacyPeriod) return null;
+
+    const alreadyExists = loadIndex1PeriodDataFromStore(user.id, formNumber, legacyPeriod.year, legacyPeriod.quarter);
+    if (alreadyExists.found) return null;
+
+    const store = readIndex1Store();
+    store.headers.push({
+        id: generateId(),
+        userId: user.id,
+        formNumber,
+        year: legacyPeriod.year,
+        quarter: legacyPeriod.quarter,
+        headerData: header,
+        version: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.username
+    });
+
+    const usedIds = new Set(store.rows.map(r => r.id));
+    const legacyRows = extractLegacyRows(legacyDoc.formData);
+    legacyRows.forEach(row => {
+        let rowId = row.id && row.id.length <= 120 ? row.id : generateId();
+        if (!rowId || usedIds.has(rowId)) {
+            rowId = generateId();
+        }
+        usedIds.add(rowId);
+        store.rows.push({
+            id: rowId,
+            userId: user.id,
+            formNumber,
+            year: legacyPeriod.year,
+            quarter: legacyPeriod.quarter,
+            tableId: row.tableId,
+            rowOrder: row.rowOrder,
+            cells: row.cells,
+            version: 1,
+            isDeleted: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            createdBy: user.username,
+            updatedBy: user.username
+        });
+    });
+
+    writeIndex1Store(store);
+    return {
+        period: legacyPeriod,
+        attachedFiles: legacyDoc.attachedFiles || {}
+    };
+}
+
+function syncLegacyIndex1DocumentToJson(user, formNumber, year, quarter) {
+    const periodData = loadIndex1PeriodDataFromStore(user.id, formNumber, year, quarter);
+    const tables = {};
+    Object.entries(periodData.rowsByTable).forEach(([tableId, rows]) => {
+        tables[tableId] = {
+            rows: rows.map(r => r.cells || []),
+            rowIds: rows.map(r => r.id)
+        };
+    });
+
+    const legacyFormData = {
+        header: periodData.header || {},
+        tables
+    };
+
+    const db = readDB();
+    const idx = db.documents.findIndex(doc =>
+        doc.userId === user.id &&
+        doc.formNumber === formNumber &&
+        doc.type === 'json'
+    );
+
+    if (idx >= 0) {
+        db.documents[idx].formData = legacyFormData;
+        db.documents[idx].organization = user.organization || '';
+        db.documents[idx].submittedAt = new Date().toISOString();
+        db.documents[idx].uploadedAt = new Date().toISOString();
+    } else {
+        db.documents.unshift({
+            id: generateId(),
+            type: 'json',
+            formNumber,
+            formData: legacyFormData,
+            attachedFiles: {},
+            organization: user.organization || '',
+            submittedAt: new Date().toISOString(),
+            uploadedAt: new Date().toISOString(),
+            userId: user.id,
+            username: user.username,
+            userFullName: user.fullName,
+            userEmail: user.email,
+            userOrganization: user.organization
+        });
+    }
+
+    writeDB(db);
 }
 
 // Простая проверка токена
@@ -290,6 +559,426 @@ const storage = multer.diskStorage({
 const upload = multer({ 
     storage,
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB макс
+});
+
+// =====================================================
+// INDEX1 V2: ПОСТРОЧНОЕ ХРАНЕНИЕ + КВАРТАЛЬНАЯ ИСТОРИЯ (JSON MODE)
+// =====================================================
+
+app.get('/api/index1/forms/:formNumber/quarters', authenticateToken, (req, res) => {
+    try {
+        const { formNumber } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const store = readIndex1Store();
+        const uniq = new Map();
+
+        store.headers
+            .filter(h => h.userId === req.user.id && h.formNumber === formNumber)
+            .forEach(h => {
+                const key = `${h.year}-${h.quarter}`;
+                uniq.set(key, {
+                    year: h.year,
+                    quarter: h.quarter,
+                    updatedAt: h.updatedAt
+                });
+            });
+
+        store.rows
+            .filter(r => r.userId === req.user.id && r.formNumber === formNumber && !r.isDeleted)
+            .forEach(r => {
+                const key = `${r.year}-${r.quarter}`;
+                const current = uniq.get(key);
+                if (!current || new Date(r.updatedAt) > new Date(current.updatedAt)) {
+                    uniq.set(key, {
+                        year: r.year,
+                        quarter: r.quarter,
+                        updatedAt: r.updatedAt
+                    });
+                }
+            });
+
+        const quarters = Array.from(uniq.values())
+            .sort((a, b) => (b.year - a.year) || (b.quarter - a.quarter));
+
+        res.json({ success: true, formNumber, quarters });
+    } catch (error) {
+        console.error('Ошибка index1 quarters (json):', error);
+        res.status(500).json({ error: 'Ошибка при получении кварталов' });
+    }
+});
+
+app.get('/api/index1/forms/:formNumber', authenticateToken, (req, res) => {
+    try {
+        const { formNumber } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.query);
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        let effectivePeriod = { ...period };
+        let data = loadIndex1PeriodDataFromStore(req.user.id, formNumber, effectivePeriod.year, effectivePeriod.quarter);
+        let attachedFiles = {};
+
+        if (!data.found) {
+            const hasAnyData = hasAnyIndex1DataInStore(req.user.id, formNumber);
+            const bootstrapped = !hasAnyData
+                ? bootstrapIndex1FromLegacyIfNeeded(req.user, formNumber)
+                : null;
+            if (bootstrapped?.period) {
+                effectivePeriod = bootstrapped.period;
+                attachedFiles = bootstrapped.attachedFiles || {};
+                data = loadIndex1PeriodDataFromStore(req.user.id, formNumber, effectivePeriod.year, effectivePeriod.quarter);
+            }
+        }
+
+        if (!attachedFiles || Object.keys(attachedFiles).length === 0) {
+            const db = readDB();
+            const legacyDoc = db.documents.find(d =>
+                d.userId === req.user.id &&
+                d.formNumber === formNumber &&
+                d.type === 'json'
+            );
+            attachedFiles = legacyDoc?.attachedFiles || {};
+        }
+
+        res.json({
+            success: true,
+            found: data.found,
+            formNumber,
+            year: effectivePeriod.year,
+            quarter: effectivePeriod.quarter,
+            header: data.header,
+            headerVersion: data.headerVersion,
+            headerUpdatedAt: data.headerUpdatedAt,
+            rowsByTable: data.rowsByTable,
+            attachedFiles
+        });
+    } catch (error) {
+        console.error('Ошибка index1 load (json):', error);
+        res.status(500).json({ error: 'Ошибка при загрузке формы index1' });
+    }
+});
+
+app.patch('/api/index1/forms/:formNumber/header', authenticateToken, (req, res) => {
+    try {
+        const { formNumber } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.body);
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        const expectedVersion = req.body.expectedVersion == null ? null : Number(req.body.expectedVersion);
+        if (expectedVersion != null && (!Number.isInteger(expectedVersion) || expectedVersion < 0)) {
+            return res.status(400).json({ error: 'Некорректный expectedVersion' });
+        }
+
+        const header = normalizeHeaderData(req.body.header);
+        const store = readIndex1Store();
+        const idx = store.headers.findIndex(h =>
+            h.userId === req.user.id &&
+            h.formNumber === formNumber &&
+            h.year === period.year &&
+            h.quarter === period.quarter
+        );
+
+        let version = 1;
+        if (idx < 0) {
+            store.headers.push({
+                id: generateId(),
+                userId: req.user.id,
+                formNumber,
+                year: period.year,
+                quarter: period.quarter,
+                headerData: header,
+                version: 1,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                updatedBy: req.user.username
+            });
+            version = 1;
+        } else {
+            const current = store.headers[idx];
+            if (expectedVersion != null && current.version !== expectedVersion) {
+                return res.status(409).json({
+                    error: 'Конфликт версий: шапка уже изменена другим пользователем',
+                    currentVersion: current.version,
+                    currentHeader: current.headerData
+                });
+            }
+            current.headerData = header;
+            current.version += 1;
+            current.updatedAt = new Date().toISOString();
+            current.updatedBy = req.user.username;
+            version = current.version;
+        }
+
+        writeIndex1Store(store);
+        syncLegacyIndex1DocumentToJson(req.user, formNumber, period.year, period.quarter);
+
+        res.json({
+            success: true,
+            formNumber,
+            year: period.year,
+            quarter: period.quarter,
+            version,
+            header
+        });
+    } catch (error) {
+        console.error('Ошибка index1 header save (json):', error);
+        res.status(500).json({ error: 'Ошибка при сохранении шапки' });
+    }
+});
+
+app.post('/api/index1/forms/:formNumber/rows', authenticateToken, (req, res) => {
+    try {
+        const { formNumber } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.body);
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        const tableId = String(req.body.tableId || '').trim();
+        if (!tableId) {
+            return res.status(400).json({ error: 'tableId обязателен' });
+        }
+
+        const cells = normalizeCells(req.body.cells);
+        const store = readIndex1Store();
+
+        let rowOrder = Number(req.body.rowOrder);
+        if (!Number.isInteger(rowOrder) || rowOrder <= 0) {
+            const rows = store.rows.filter(r =>
+                r.userId === req.user.id &&
+                r.formNumber === formNumber &&
+                r.year === period.year &&
+                r.quarter === period.quarter &&
+                r.tableId === tableId &&
+                !r.isDeleted
+            );
+            const maxOrder = rows.reduce((max, r) => Math.max(max, Number(r.rowOrder) || 0), 0);
+            rowOrder = maxOrder + 1;
+        }
+
+        const candidateRowId = String(req.body.rowId || '').trim();
+        if (candidateRowId && candidateRowId.length > 120) {
+            return res.status(400).json({ error: 'rowId слишком длинный' });
+        }
+        if (candidateRowId && store.rows.some(r => r.id === candidateRowId && !r.isDeleted)) {
+            return res.status(409).json({ error: 'rowId уже существует' });
+        }
+
+        const row = {
+            id: candidateRowId || generateId(),
+            userId: req.user.id,
+            formNumber,
+            year: period.year,
+            quarter: period.quarter,
+            tableId,
+            rowOrder,
+            cells,
+            version: 1,
+            isDeleted: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            createdBy: req.user.username,
+            updatedBy: req.user.username
+        };
+        store.rows.push(row);
+        writeIndex1Store(store);
+        syncLegacyIndex1DocumentToJson(req.user, formNumber, period.year, period.quarter);
+
+        res.json({
+            success: true,
+            formNumber,
+            year: period.year,
+            quarter: period.quarter,
+            row: {
+                id: row.id,
+                tableId: row.tableId,
+                rowOrder: row.rowOrder,
+                cells: row.cells,
+                version: row.version,
+                updatedAt: row.updatedAt,
+                updatedBy: row.updatedBy
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка index1 row create (json):', error);
+        res.status(500).json({ error: 'Ошибка при добавлении строки' });
+    }
+});
+
+app.put('/api/index1/forms/:formNumber/rows/:rowId', authenticateToken, (req, res) => {
+    try {
+        const { formNumber, rowId } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.body);
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        const tableId = String(req.body.tableId || '').trim();
+        if (!tableId) {
+            return res.status(400).json({ error: 'tableId обязателен' });
+        }
+
+        const expectedVersion = Number(req.body.expectedVersion);
+        if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+            return res.status(400).json({ error: 'expectedVersion обязателен и должен быть > 0' });
+        }
+
+        const store = readIndex1Store();
+        const idx = store.rows.findIndex(r =>
+            r.id === rowId &&
+            r.userId === req.user.id &&
+            r.formNumber === formNumber &&
+            r.year === period.year &&
+            r.quarter === period.quarter &&
+            r.tableId === tableId &&
+            !r.isDeleted
+        );
+
+        if (idx < 0) return res.status(404).json({ error: 'Строка не найдена' });
+        const current = store.rows[idx];
+        if (current.version !== expectedVersion) {
+            return res.status(409).json({
+                error: 'Конфликт версий: строка уже изменена другим пользователем',
+                currentVersion: current.version,
+                currentCells: current.cells
+            });
+        }
+
+        current.cells = normalizeCells(req.body.cells);
+        current.version += 1;
+        current.updatedAt = new Date().toISOString();
+        current.updatedBy = req.user.username;
+
+        writeIndex1Store(store);
+        syncLegacyIndex1DocumentToJson(req.user, formNumber, period.year, period.quarter);
+
+        res.json({
+            success: true,
+            formNumber,
+            year: period.year,
+            quarter: period.quarter,
+            row: {
+                id: current.id,
+                tableId: current.tableId,
+                rowOrder: current.rowOrder,
+                cells: current.cells,
+                version: current.version,
+                updatedAt: current.updatedAt,
+                updatedBy: current.updatedBy
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка index1 row update (json):', error);
+        res.status(500).json({ error: 'Ошибка при обновлении строки' });
+    }
+});
+
+app.delete('/api/index1/forms/:formNumber/rows/:rowId', authenticateToken, (req, res) => {
+    try {
+        const { formNumber, rowId } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.body || {});
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        const tableId = String(req.body?.tableId || '').trim();
+        if (!tableId) {
+            return res.status(400).json({ error: 'tableId обязателен' });
+        }
+
+        const expectedVersion = Number(req.body?.expectedVersion);
+        if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+            return res.status(400).json({ error: 'expectedVersion обязателен и должен быть > 0' });
+        }
+
+        const store = readIndex1Store();
+        const idx = store.rows.findIndex(r =>
+            r.id === rowId &&
+            r.userId === req.user.id &&
+            r.formNumber === formNumber &&
+            r.year === period.year &&
+            r.quarter === period.quarter &&
+            r.tableId === tableId &&
+            !r.isDeleted
+        );
+
+        if (idx < 0) return res.status(404).json({ error: 'Строка не найдена' });
+
+        const current = store.rows[idx];
+        if (current.version !== expectedVersion) {
+            return res.status(409).json({
+                error: 'Конфликт версий: строка уже изменена другим пользователем',
+                currentVersion: current.version
+            });
+        }
+
+        current.isDeleted = true;
+        current.version += 1;
+        current.updatedAt = new Date().toISOString();
+        current.updatedBy = req.user.username;
+
+        writeIndex1Store(store);
+        syncLegacyIndex1DocumentToJson(req.user, formNumber, period.year, period.quarter);
+
+        res.json({ success: true, message: 'Строка удалена' });
+    } catch (error) {
+        console.error('Ошибка index1 row delete (json):', error);
+        res.status(500).json({ error: 'Ошибка при удалении строки' });
+    }
+});
+
+app.delete('/api/index1/my', authenticateToken, (req, res) => {
+    try {
+        const store = readIndex1Store();
+        const headersBefore = store.headers.length;
+        const rowsBefore = store.rows.length;
+
+        store.headers = store.headers.filter(h => h.userId !== req.user.id);
+        store.rows = store.rows.filter(r => r.userId !== req.user.id);
+        writeIndex1Store(store);
+
+        const db = readDB();
+        const docsBefore = db.documents.length;
+        db.documents = db.documents.filter(d => !(d.userId === req.user.id && d.type === 'json'));
+        writeDB(db);
+
+        res.json({
+            success: true,
+            message: 'Ваши ответы удалены из новой и legacy модели',
+            deletedHeaders: headersBefore - store.headers.length,
+            deletedRows: rowsBefore - store.rows.length,
+            deletedLegacy: docsBefore - db.documents.length
+        });
+    } catch (error) {
+        console.error('Ошибка index1/my delete (json):', error);
+        res.status(500).json({ error: 'Ошибка при удалении ответов index1' });
+    }
 });
 
 /**

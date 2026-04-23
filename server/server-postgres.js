@@ -76,6 +76,56 @@ pool.connect((err, client, release) => {
             )
         `).then(() => console.log('✅ Таблица oracle_plan5_cache готова'))
           .catch(e => console.error('❌ oracle_plan5_cache:', e.message));
+
+        // Таблицы построчного хранения index1 (квартальная история + конкурентная работа)
+        pool.query(`
+            CREATE TABLE IF NOT EXISTS index1_headers (
+                id VARCHAR(50) PRIMARY KEY,
+                user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                form_number VARCHAR(10) NOT NULL,
+                year INTEGER NOT NULL,
+                quarter INTEGER NOT NULL CHECK (quarter BETWEEN 1 AND 4),
+                header_data JSONB NOT NULL DEFAULT '{}',
+                version INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                updated_by VARCHAR(100),
+                UNIQUE(user_id, form_number, year, quarter)
+            )
+        `).then(() => console.log('✅ Таблица index1_headers готова'))
+          .catch(e => console.error('❌ index1_headers:', e.message));
+
+        pool.query(`
+            CREATE TABLE IF NOT EXISTS index1_rows (
+                id VARCHAR(50) PRIMARY KEY,
+                user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                form_number VARCHAR(10) NOT NULL,
+                year INTEGER NOT NULL,
+                quarter INTEGER NOT NULL CHECK (quarter BETWEEN 1 AND 4),
+                table_id VARCHAR(100) NOT NULL,
+                row_order INTEGER NOT NULL DEFAULT 1,
+                cells JSONB NOT NULL DEFAULT '[]',
+                version INTEGER NOT NULL DEFAULT 1,
+                is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                created_by VARCHAR(100),
+                updated_by VARCHAR(100)
+            )
+        `).then(() => console.log('✅ Таблица index1_rows готова'))
+          .catch(e => console.error('❌ index1_rows:', e.message));
+
+        pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_index1_rows_period
+            ON index1_rows (user_id, form_number, year, quarter, table_id, is_deleted, row_order)
+        `).then(() => console.log('✅ Индекс idx_index1_rows_period готов'))
+          .catch(e => console.error('❌ idx_index1_rows_period:', e.message));
+
+        pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_index1_headers_period
+            ON index1_headers (user_id, form_number, year, quarter)
+        `).then(() => console.log('✅ Индекс idx_index1_headers_period готов'))
+          .catch(e => console.error('❌ idx_index1_headers_period:', e.message));
     }
 });
 
@@ -131,6 +181,290 @@ function generateId() {
 function generateToken() {
     return Math.random().toString(36).substr(2) + Date.now().toString(36) + 
            Math.random().toString(36).substr(2);
+}
+
+const INDEX1_FORM_NUMBERS = new Set(['1', '2', '3', '4']);
+
+function getCurrentQuarter() {
+    return Math.floor(new Date().getMonth() / 3) + 1;
+}
+
+function parseIndex1Period(source = {}) {
+    const rawYear = source.year;
+    const rawQuarter = source.quarter;
+    const year = Number.isInteger(Number(rawYear)) ? Number(rawYear) : new Date().getFullYear();
+    const quarter = Number.isInteger(Number(rawQuarter)) ? Number(rawQuarter) : getCurrentQuarter();
+    if (!Number.isInteger(year) || year < 2020 || year > 2100) return null;
+    if (!Number.isInteger(quarter) || quarter < 1 || quarter > 4) return null;
+    return { year, quarter };
+}
+
+function normalizeHeaderData(headerData) {
+    const normalized = {};
+    if (!headerData || typeof headerData !== 'object') return normalized;
+    for (const key of Object.keys(headerData)) {
+        if (!/^input_\d+$/.test(key)) continue;
+        normalized[key] = headerData[key] == null ? '' : String(headerData[key]);
+    }
+    return normalized;
+}
+
+function normalizeCells(cells) {
+    if (!Array.isArray(cells)) return [];
+    return cells.map(value => value == null ? '' : String(value));
+}
+
+function parseLegacyPeriodFromHeader(formNumber, headerData) {
+    const indexMap = {
+        '1': { quarter: 3, year: 4 },
+        '2': { quarter: 0, year: 1 },
+        '3': { quarter: 0, year: 1 },
+        '4': { quarter: 0, year: 1 }
+    };
+    const map = indexMap[String(formNumber)] || indexMap['1'];
+    const quarter = Number(headerData?.[`input_${map.quarter}`]);
+    const year = Number(headerData?.[`input_${map.year}`]);
+    if (!Number.isInteger(quarter) || quarter < 1 || quarter > 4) return null;
+    if (!Number.isInteger(year) || year < 2020 || year > 2100) return null;
+    return { year, quarter };
+}
+
+function extractLegacyRows(formData) {
+    const rows = [];
+    const tables = formData?.tables || {};
+
+    for (const [tableId, tableData] of Object.entries(tables)) {
+        const rawRows = Array.isArray(tableData?.rows)
+            ? tableData.rows
+            : Array.isArray(tableData) ? tableData : [];
+        const rowIds = Array.isArray(tableData?.rowIds) ? tableData.rowIds : [];
+
+        let rowOrder = 1;
+        rawRows.forEach((rawCells, idx) => {
+            const cells = normalizeCells(rawCells);
+            const hasData = cells.some(cell => String(cell || '').trim() !== '');
+            if (!hasData) return;
+
+            const candidateId = String(rowIds[idx] || '').trim();
+            rows.push({
+                id: candidateId,
+                tableId,
+                rowOrder: rowOrder++,
+                cells
+            });
+        });
+    }
+
+    return rows;
+}
+
+function groupRowsByTable(rows) {
+    const grouped = {};
+    for (const row of rows) {
+        if (!grouped[row.table_id]) grouped[row.table_id] = [];
+        grouped[row.table_id].push({
+            id: row.id,
+            rowOrder: row.row_order,
+            cells: Array.isArray(row.cells) ? row.cells : [],
+            version: row.version,
+            updatedAt: row.updated_at,
+            updatedBy: row.updated_by || row.created_by || null
+        });
+    }
+    return grouped;
+}
+
+async function loadIndex1PeriodData(userId, formNumber, year, quarter) {
+    const headerResult = await pool.query(
+        `SELECT header_data, version, updated_at
+           FROM index1_headers
+          WHERE user_id = $1 AND form_number = $2 AND year = $3 AND quarter = $4
+          LIMIT 1`,
+        [userId, formNumber, year, quarter]
+    );
+
+    const rowsResult = await pool.query(
+        `SELECT id, table_id, row_order, cells, version, updated_at, updated_by, created_by
+           FROM index1_rows
+          WHERE user_id = $1
+            AND form_number = $2
+            AND year = $3
+            AND quarter = $4
+            AND is_deleted = FALSE
+          ORDER BY table_id ASC, row_order ASC, created_at ASC`,
+        [userId, formNumber, year, quarter]
+    );
+
+    const headerRow = headerResult.rows[0] || null;
+    const groupedRows = groupRowsByTable(rowsResult.rows);
+
+    return {
+        found: !!headerRow || rowsResult.rows.length > 0,
+        header: headerRow?.header_data || {},
+        headerVersion: headerRow?.version || 0,
+        headerUpdatedAt: headerRow?.updated_at || null,
+        rowsByTable: groupedRows
+    };
+}
+
+async function hasAnyIndex1Data(userId, formNumber) {
+    const headerExists = await pool.query(
+        `SELECT 1
+           FROM index1_headers
+          WHERE user_id = $1 AND form_number = $2
+          LIMIT 1`,
+        [userId, formNumber]
+    );
+    if (headerExists.rows.length > 0) return true;
+
+    const rowsExists = await pool.query(
+        `SELECT 1
+           FROM index1_rows
+          WHERE user_id = $1 AND form_number = $2 AND is_deleted = FALSE
+          LIMIT 1`,
+        [userId, formNumber]
+    );
+    return rowsExists.rows.length > 0;
+}
+
+async function bootstrapIndex1FromLegacyIfNeeded(user, formNumber) {
+    const legacyDocResult = await pool.query(
+        `SELECT form_data, attached_files
+           FROM documents
+          WHERE user_id = $1 AND form_number = $2 AND type = 'json'
+          ORDER BY uploaded_at DESC
+          LIMIT 1`,
+        [user.id, formNumber]
+    );
+
+    if (legacyDocResult.rows.length === 0) return null;
+
+    const legacyDoc = legacyDocResult.rows[0];
+    const legacyFormData = legacyDoc.form_data || {};
+    const header = normalizeHeaderData(legacyFormData.header || {});
+    const legacyPeriod = parseLegacyPeriodFromHeader(formNumber, header);
+    if (!legacyPeriod) return null;
+
+    const existing = await loadIndex1PeriodData(user.id, formNumber, legacyPeriod.year, legacyPeriod.quarter);
+    if (existing.found) return null;
+
+    await pool.query(
+        `INSERT INTO index1_headers
+            (id, user_id, form_number, year, quarter, header_data, version, created_at, updated_at, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, 1, NOW(), NOW(), $7)
+         ON CONFLICT (user_id, form_number, year, quarter) DO NOTHING`,
+        [
+            generateId(),
+            user.id,
+            formNumber,
+            legacyPeriod.year,
+            legacyPeriod.quarter,
+            JSON.stringify(header),
+            user.username || null
+        ]
+    );
+
+    const legacyRows = extractLegacyRows(legacyFormData);
+    for (const row of legacyRows) {
+        let rowId = row.id && row.id.length <= 120 ? row.id : generateId();
+        const idCheck = await pool.query(
+            `SELECT id FROM index1_rows WHERE id = $1 LIMIT 1`,
+            [rowId]
+        );
+        if (idCheck.rows.length > 0) {
+            rowId = generateId();
+        }
+
+        await pool.query(
+            `INSERT INTO index1_rows
+                (id, user_id, form_number, year, quarter, table_id, row_order, cells, version, is_deleted, created_at, updated_at, created_by, updated_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, FALSE, NOW(), NOW(), $9, $9)`,
+            [
+                rowId,
+                user.id,
+                formNumber,
+                legacyPeriod.year,
+                legacyPeriod.quarter,
+                row.tableId,
+                row.rowOrder,
+                JSON.stringify(row.cells),
+                user.username || null
+            ]
+        );
+    }
+
+    return {
+        period: legacyPeriod,
+        attachedFiles: legacyDoc.attached_files || {}
+    };
+}
+
+async function syncLegacyIndex1Document(user, formNumber, year, quarter) {
+    const periodData = await loadIndex1PeriodData(user.id, formNumber, year, quarter);
+    const tables = {};
+    for (const [tableId, rows] of Object.entries(periodData.rowsByTable)) {
+        tables[tableId] = {
+            rows: rows.map(r => r.cells || []),
+            rowIds: rows.map(r => r.id)
+        };
+    }
+
+    const legacyFormData = {
+        header: periodData.header || {},
+        tables
+    };
+
+    const existingResult = await pool.query(
+        `SELECT id, attached_files
+           FROM documents
+          WHERE user_id = $1 AND form_number = $2 AND type = 'json'
+          ORDER BY uploaded_at DESC
+          LIMIT 1`,
+        [user.id, formNumber]
+    );
+
+    if (existingResult.rows.length > 0) {
+        await pool.query(
+            `UPDATE documents
+                SET form_data = $1,
+                    organization = $2,
+                    submitted_at = NOW(),
+                    uploaded_at = NOW(),
+                    username = $3,
+                    user_full_name = $4,
+                    user_email = $5,
+                    user_organization = $6
+              WHERE id = $7`,
+            [
+                JSON.stringify(legacyFormData),
+                user.organization || '',
+                user.username || '',
+                user.fullName || user.full_name || user.username || '',
+                user.email || '',
+                user.organization || '',
+                existingResult.rows[0].id
+            ]
+        );
+    } else {
+        await pool.query(
+            `INSERT INTO documents (
+                id, user_id, type, form_number, form_data, attached_files, organization,
+                submitted_at, uploaded_at, username, user_full_name, user_email, user_organization
+            ) VALUES ($1, $2, 'json', $3, $4, $5, $6, NOW(), NOW(), $7, $8, $9, $10)`,
+            [
+                generateId(),
+                user.id,
+                formNumber,
+                JSON.stringify(legacyFormData),
+                JSON.stringify({}),
+                user.organization || '',
+                user.username || '',
+                user.fullName || user.full_name || user.username || '',
+                user.email || '',
+                user.organization || ''
+            ]
+        );
+    }
 }
 
 // Сессии в памяти (для простоты, в production лучше Redis)
@@ -283,6 +617,477 @@ const storage = multer.diskStorage({
 const upload = multer({ 
     storage,
     limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+// =====================================================
+// INDEX1 V2: ПОСТРОЧНОЕ ХРАНЕНИЕ + КВАРТАЛЬНАЯ ИСТОРИЯ
+// =====================================================
+
+app.get('/api/index1/forms/:formNumber/quarters', authenticateToken, async (req, res) => {
+    try {
+        const { formNumber } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const result = await pool.query(
+            `SELECT year, quarter, MAX(updated_at) AS updated_at
+               FROM (
+                    SELECT year, quarter, updated_at
+                      FROM index1_headers
+                     WHERE user_id = $1 AND form_number = $2
+                    UNION ALL
+                    SELECT year, quarter, updated_at
+                      FROM index1_rows
+                     WHERE user_id = $1 AND form_number = $2 AND is_deleted = FALSE
+               ) q
+              GROUP BY year, quarter
+              ORDER BY year DESC, quarter DESC`,
+            [req.user.id, formNumber]
+        );
+
+        res.json({
+            success: true,
+            formNumber,
+            quarters: result.rows.map(r => ({
+                year: r.year,
+                quarter: r.quarter,
+                updatedAt: r.updated_at
+            }))
+        });
+    } catch (error) {
+        console.error('Ошибка index1 quarters:', error);
+        res.status(500).json({ error: 'Ошибка при получении списка кварталов' });
+    }
+});
+
+app.get('/api/index1/forms/:formNumber', authenticateToken, async (req, res) => {
+    try {
+        const { formNumber } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.query);
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        let effectivePeriod = { ...period };
+        let data = await loadIndex1PeriodData(req.user.id, formNumber, effectivePeriod.year, effectivePeriod.quarter);
+        let attachedFiles = {};
+
+        if (!data.found) {
+            const hasAnyData = await hasAnyIndex1Data(req.user.id, formNumber);
+            const bootstrapped = !hasAnyData
+                ? await bootstrapIndex1FromLegacyIfNeeded(req.user, formNumber)
+                : null;
+            if (bootstrapped?.period) {
+                effectivePeriod = bootstrapped.period;
+                attachedFiles = bootstrapped.attachedFiles || {};
+                data = await loadIndex1PeriodData(req.user.id, formNumber, effectivePeriod.year, effectivePeriod.quarter);
+            }
+        }
+
+        if (!attachedFiles || Object.keys(attachedFiles).length === 0) {
+            const legacyDocResult = await pool.query(
+                `SELECT attached_files
+                   FROM documents
+                  WHERE user_id = $1 AND form_number = $2 AND type = 'json'
+                  ORDER BY uploaded_at DESC
+                  LIMIT 1`,
+                [req.user.id, formNumber]
+            );
+            attachedFiles = legacyDocResult.rows[0]?.attached_files || {};
+        }
+
+        res.json({
+            success: true,
+            found: data.found,
+            formNumber,
+            year: effectivePeriod.year,
+            quarter: effectivePeriod.quarter,
+            header: data.header,
+            headerVersion: data.headerVersion,
+            headerUpdatedAt: data.headerUpdatedAt,
+            rowsByTable: data.rowsByTable,
+            attachedFiles
+        });
+    } catch (error) {
+        console.error('Ошибка index1 load:', error);
+        res.status(500).json({ error: 'Ошибка при загрузке формы index1' });
+    }
+});
+
+app.patch('/api/index1/forms/:formNumber/header', authenticateToken, async (req, res) => {
+    try {
+        const { formNumber } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.body);
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        const header = normalizeHeaderData(req.body.header);
+        const expectedVersion = req.body.expectedVersion == null
+            ? null
+            : Number(req.body.expectedVersion);
+        if (expectedVersion != null && (!Number.isInteger(expectedVersion) || expectedVersion < 0)) {
+            return res.status(400).json({ error: 'Некорректный expectedVersion' });
+        }
+
+        const existingResult = await pool.query(
+            `SELECT id, version, header_data
+               FROM index1_headers
+              WHERE user_id = $1 AND form_number = $2 AND year = $3 AND quarter = $4
+              LIMIT 1`,
+            [req.user.id, formNumber, period.year, period.quarter]
+        );
+
+        let newVersion = 1;
+
+        if (existingResult.rows.length === 0) {
+            await pool.query(
+                `INSERT INTO index1_headers
+                    (id, user_id, form_number, year, quarter, header_data, version, created_at, updated_at, updated_by)
+                 VALUES ($1, $2, $3, $4, $5, $6, 1, NOW(), NOW(), $7)`,
+                [
+                    generateId(),
+                    req.user.id,
+                    formNumber,
+                    period.year,
+                    period.quarter,
+                    JSON.stringify(header),
+                    req.user.username || null
+                ]
+            );
+            newVersion = 1;
+        } else {
+            const current = existingResult.rows[0];
+            if (expectedVersion != null && expectedVersion !== current.version) {
+                return res.status(409).json({
+                    error: 'Конфликт версий: шапка уже изменена другим пользователем',
+                    currentVersion: current.version,
+                    currentHeader: current.header_data
+                });
+            }
+
+            const updateResult = await pool.query(
+                `UPDATE index1_headers
+                    SET header_data = $1,
+                        version = version + 1,
+                        updated_at = NOW(),
+                        updated_by = $2
+                  WHERE id = $3
+                  RETURNING version`,
+                [JSON.stringify(header), req.user.username || null, current.id]
+            );
+            newVersion = updateResult.rows[0].version;
+        }
+
+        try {
+            await syncLegacyIndex1Document(req.user, formNumber, period.year, period.quarter);
+        } catch (syncError) {
+            console.warn('index1 header sync to legacy failed:', syncError.message);
+        }
+
+        res.json({
+            success: true,
+            formNumber,
+            year: period.year,
+            quarter: period.quarter,
+            version: newVersion,
+            header
+        });
+    } catch (error) {
+        console.error('Ошибка index1 header save:', error);
+        res.status(500).json({ error: 'Ошибка при сохранении шапки' });
+    }
+});
+
+app.post('/api/index1/forms/:formNumber/rows', authenticateToken, async (req, res) => {
+    try {
+        const { formNumber } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.body);
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        const tableId = String(req.body.tableId || '').trim();
+        if (!tableId) {
+            return res.status(400).json({ error: 'tableId обязателен' });
+        }
+
+        const cells = normalizeCells(req.body.cells);
+        let rowOrder = Number(req.body.rowOrder);
+        if (!Number.isInteger(rowOrder) || rowOrder <= 0) {
+            const nextOrderResult = await pool.query(
+                `SELECT COALESCE(MAX(row_order), 0) + 1 AS next_order
+                   FROM index1_rows
+                  WHERE user_id = $1
+                    AND form_number = $2
+                    AND year = $3
+                    AND quarter = $4
+                    AND table_id = $5
+                    AND is_deleted = FALSE`,
+                [req.user.id, formNumber, period.year, period.quarter, tableId]
+            );
+            rowOrder = nextOrderResult.rows[0].next_order || 1;
+        }
+
+        const candidateRowId = String(req.body.rowId || '').trim();
+        if (candidateRowId && candidateRowId.length > 120) {
+            return res.status(400).json({ error: 'rowId слишком длинный' });
+        }
+        if (candidateRowId) {
+            const idCheck = await pool.query(
+                `SELECT id FROM index1_rows WHERE id = $1 LIMIT 1`,
+                [candidateRowId]
+            );
+            if (idCheck.rows.length > 0) {
+                return res.status(409).json({ error: 'rowId уже существует' });
+            }
+        }
+        const rowId = candidateRowId || generateId();
+        const insertResult = await pool.query(
+            `INSERT INTO index1_rows
+                (id, user_id, form_number, year, quarter, table_id, row_order, cells, version, is_deleted, created_at, updated_at, created_by, updated_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, FALSE, NOW(), NOW(), $9, $9)
+             RETURNING id, table_id, row_order, cells, version, updated_at, updated_by`,
+            [
+                rowId,
+                req.user.id,
+                formNumber,
+                period.year,
+                period.quarter,
+                tableId,
+                rowOrder,
+                JSON.stringify(cells),
+                req.user.username || null
+            ]
+        );
+
+        try {
+            await syncLegacyIndex1Document(req.user, formNumber, period.year, period.quarter);
+        } catch (syncError) {
+            console.warn('index1 row insert sync to legacy failed:', syncError.message);
+        }
+
+        const row = insertResult.rows[0];
+        res.json({
+            success: true,
+            formNumber,
+            year: period.year,
+            quarter: period.quarter,
+            row: {
+                id: row.id,
+                tableId: row.table_id,
+                rowOrder: row.row_order,
+                cells: row.cells,
+                version: row.version,
+                updatedAt: row.updated_at,
+                updatedBy: row.updated_by
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка index1 row create:', error);
+        res.status(500).json({ error: 'Ошибка при добавлении строки' });
+    }
+});
+
+app.put('/api/index1/forms/:formNumber/rows/:rowId', authenticateToken, async (req, res) => {
+    try {
+        const { formNumber, rowId } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.body);
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        const tableId = String(req.body.tableId || '').trim();
+        if (!tableId) {
+            return res.status(400).json({ error: 'tableId обязателен' });
+        }
+
+        const expectedVersion = Number(req.body.expectedVersion);
+        if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+            return res.status(400).json({ error: 'expectedVersion обязателен и должен быть > 0' });
+        }
+
+        const currentResult = await pool.query(
+            `SELECT id, cells, version, row_order
+               FROM index1_rows
+              WHERE id = $1
+                AND user_id = $2
+                AND form_number = $3
+                AND year = $4
+                AND quarter = $5
+                AND table_id = $6
+                AND is_deleted = FALSE
+              LIMIT 1`,
+            [rowId, req.user.id, formNumber, period.year, period.quarter, tableId]
+        );
+
+        if (currentResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Строка не найдена' });
+        }
+
+        const currentRow = currentResult.rows[0];
+        if (currentRow.version !== expectedVersion) {
+            return res.status(409).json({
+                error: 'Конфликт версий: строка уже изменена другим пользователем',
+                currentVersion: currentRow.version,
+                currentCells: currentRow.cells
+            });
+        }
+
+        const cells = normalizeCells(req.body.cells);
+        const updateResult = await pool.query(
+            `UPDATE index1_rows
+                SET cells = $1,
+                    version = version + 1,
+                    updated_at = NOW(),
+                    updated_by = $2
+              WHERE id = $3
+              RETURNING id, table_id, row_order, cells, version, updated_at, updated_by`,
+            [JSON.stringify(cells), req.user.username || null, rowId]
+        );
+
+        try {
+            await syncLegacyIndex1Document(req.user, formNumber, period.year, period.quarter);
+        } catch (syncError) {
+            console.warn('index1 row update sync to legacy failed:', syncError.message);
+        }
+
+        const row = updateResult.rows[0];
+        res.json({
+            success: true,
+            formNumber,
+            year: period.year,
+            quarter: period.quarter,
+            row: {
+                id: row.id,
+                tableId: row.table_id,
+                rowOrder: row.row_order,
+                cells: row.cells,
+                version: row.version,
+                updatedAt: row.updated_at,
+                updatedBy: row.updated_by
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка index1 row update:', error);
+        res.status(500).json({ error: 'Ошибка при обновлении строки' });
+    }
+});
+
+app.delete('/api/index1/forms/:formNumber/rows/:rowId', authenticateToken, async (req, res) => {
+    try {
+        const { formNumber, rowId } = req.params;
+        if (!INDEX1_FORM_NUMBERS.has(formNumber)) {
+            return res.status(400).json({ error: 'Поддерживаются только формы 1-4' });
+        }
+
+        const period = parseIndex1Period(req.body || {});
+        if (!period) {
+            return res.status(400).json({ error: 'Некорректный year/quarter' });
+        }
+
+        const tableId = String(req.body?.tableId || '').trim();
+        if (!tableId) {
+            return res.status(400).json({ error: 'tableId обязателен' });
+        }
+
+        const expectedVersion = Number(req.body?.expectedVersion);
+        if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+            return res.status(400).json({ error: 'expectedVersion обязателен и должен быть > 0' });
+        }
+
+        const currentResult = await pool.query(
+            `SELECT id, version
+               FROM index1_rows
+              WHERE id = $1
+                AND user_id = $2
+                AND form_number = $3
+                AND year = $4
+                AND quarter = $5
+                AND table_id = $6
+                AND is_deleted = FALSE
+              LIMIT 1`,
+            [rowId, req.user.id, formNumber, period.year, period.quarter, tableId]
+        );
+
+        if (currentResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Строка не найдена' });
+        }
+
+        const currentVersion = currentResult.rows[0].version;
+        if (currentVersion !== expectedVersion) {
+            return res.status(409).json({
+                error: 'Конфликт версий: строка уже изменена другим пользователем',
+                currentVersion
+            });
+        }
+
+        await pool.query(
+            `UPDATE index1_rows
+                SET is_deleted = TRUE,
+                    version = version + 1,
+                    updated_at = NOW(),
+                    updated_by = $1
+              WHERE id = $2`,
+            [req.user.username || null, rowId]
+        );
+
+        try {
+            await syncLegacyIndex1Document(req.user, formNumber, period.year, period.quarter);
+        } catch (syncError) {
+            console.warn('index1 row delete sync to legacy failed:', syncError.message);
+        }
+
+        res.json({ success: true, message: 'Строка удалена' });
+    } catch (error) {
+        console.error('Ошибка index1 row delete:', error);
+        res.status(500).json({ error: 'Ошибка при удалении строки' });
+    }
+});
+
+app.delete('/api/index1/my', authenticateToken, async (req, res) => {
+    try {
+        const headersDeleted = await pool.query(
+            `DELETE FROM index1_headers WHERE user_id = $1`,
+            [req.user.id]
+        );
+        const rowsDeleted = await pool.query(
+            `DELETE FROM index1_rows WHERE user_id = $1`,
+            [req.user.id]
+        );
+        const legacyDeleted = await pool.query(
+            `DELETE FROM documents WHERE user_id = $1 AND type = 'json'`,
+            [req.user.id]
+        );
+
+        res.json({
+            success: true,
+            message: 'Ваши ответы удалены из новой и legacy модели',
+            deletedHeaders: headersDeleted.rowCount,
+            deletedRows: rowsDeleted.rowCount,
+            deletedLegacy: legacyDeleted.rowCount
+        });
+    } catch (error) {
+        console.error('Ошибка удаления index1/my:', error);
+        res.status(500).json({ error: 'Ошибка при удалении ответов index1' });
+    }
 });
 
 /**

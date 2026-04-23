@@ -197,10 +197,6 @@
             padding-bottom: 32px;
         }
 
-        body.with-floating-scrollbar .floating-table-scrollbar {
-            /* keeps space so content doesn't hide the scrollbar */
-        }
-
         .form-table {
             width: 100%;
             border-collapse: collapse;
@@ -298,6 +294,16 @@
             <select class="filter-select" id="userFilter" onchange="filterForms()">
                 <option value="">Все пользователи</option>
             </select>
+            <select class="filter-select" id="yearFilter" onchange="filterForms()">
+                <option value="">Все годы</option>
+            </select>
+            <select class="filter-select" id="quarterFilter" onchange="filterForms()">
+                <option value="">Все кварталы</option>
+                <option value="1">1 квартал</option>
+                <option value="2">2 квартал</option>
+                <option value="3">3 квартал</option>
+                <option value="4">4 квартал</option>
+            </select>
             <!-- <select class="filter-select" id="orgFilter" onchange="filterForms()">
                 <option value="">Все организации</option>
             </select> -->
@@ -383,6 +389,25 @@
                 'form4-fines': ['№', 'Вид акта и наименование органа', 'Вид нарушения', 'Принятые меры по устранению', 'Обжалование актов', 'Примечание']
             }
         };
+
+        function extractPeriodMeta(form) {
+            const formNumber = Number(form.formNumber);
+            const header = (form.formData && form.formData.header) ? form.formData.header : {};
+            const indexMap = {
+                1: { quarter: 3, year: 4 },
+                2: { quarter: 0, year: 1 },
+                3: { quarter: 0, year: 1 },
+                4: { quarter: 0, year: 1 }
+            };
+            const map = indexMap[formNumber] || { quarter: 0, year: 1 };
+            const quarter = Number(header[`input_${map.quarter}`]);
+            const year = Number(header[`input_${map.year}`]);
+
+            return {
+                periodQuarter: (Number.isInteger(quarter) && quarter >= 1 && quarter <= 4) ? quarter : null,
+                periodYear: (Number.isInteger(year) && year >= 2020 && year <= 2100) ? year : null
+            };
+        }
 
         function getHeadersForRows(tabNumber, rows) {
             const selectedCategory = getSelectedCategory();
@@ -506,7 +531,9 @@
                 
                 if (data.success) {
                     // Фильтруем только JSON формы
-                    allForms = data.documents.filter(doc => doc.type === 'json');
+                    allForms = data.documents
+                        .filter(doc => doc.type === 'json')
+                        .map(doc => ({ ...doc, ...extractPeriodMeta(doc) }));
                     console.log('📊 JSON форм:', allForms.length, allForms);
                 }
             } catch (error) {
@@ -778,6 +805,8 @@
         // Применение фильтров
         function applyFilters(forms) {
             const userFilter = document.getElementById('userFilter').value;
+            const yearFilter = document.getElementById('yearFilter').value;
+            const quarterFilter = document.getElementById('quarterFilter').value;
             const orgFilterElement = document.getElementById('orgFilter');
             const orgFilter = orgFilterElement ? orgFilterElement.value : '';
             const typeFilter = document.getElementById('typeFilter').value;
@@ -802,6 +831,14 @@
                 });
             }
 
+            if (yearFilter) {
+                forms = forms.filter(f => String(f.periodYear || '') === String(yearFilter));
+            }
+
+            if (quarterFilter) {
+                forms = forms.filter(f => String(f.periodQuarter || '') === String(quarterFilter));
+            }
+
             return forms;
         }
 
@@ -822,6 +859,19 @@
                 userFilter.innerHTML += `<option value="${id}">${escapeHtml(name)}</option>`;
             });
             console.log('👤 Пользователей в фильтре:', usersMap.size);
+
+            const yearFilter = document.getElementById('yearFilter');
+            if (yearFilter) {
+                const selected = yearFilter.value;
+                const years = Array.from(new Set(
+                    allForms.map(f => f.periodYear).filter(Boolean)
+                )).sort((a, b) => b - a);
+                yearFilter.innerHTML = '<option value="">Все годы</option>';
+                years.forEach(y => {
+                    yearFilter.innerHTML += `<option value="${y}">${y}</option>`;
+                });
+                if (selected) yearFilter.value = selected;
+            }
 
             const orgFilter = document.getElementById('orgFilter');
             if (orgFilter) {

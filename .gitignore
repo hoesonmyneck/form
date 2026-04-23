@@ -18,6 +18,7 @@ uploads/*
 # База данных (только для локальной разработки)
 server/documents.json
 server/users.json
+server/index1_store.json
 
 # НЕ игнорируем init.sql - он нужен для Render!
 

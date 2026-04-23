@@ -41,6 +41,47 @@ CREATE INDEX IF NOT EXISTS idx_documents_form_number ON documents(form_number);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
 -- =====================================================
+-- INDEX1 V2: ПОСТРОЧНОЕ ХРАНЕНИЕ С КВАРТАЛЬНОЙ ИСТОРИЕЙ
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS index1_headers (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    form_number VARCHAR(10) NOT NULL,
+    year INTEGER NOT NULL,
+    quarter INTEGER NOT NULL CHECK (quarter BETWEEN 1 AND 4),
+    header_data JSONB NOT NULL DEFAULT '{}',
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    UNIQUE(user_id, form_number, year, quarter)
+);
+
+CREATE TABLE IF NOT EXISTS index1_rows (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    form_number VARCHAR(10) NOT NULL,
+    year INTEGER NOT NULL,
+    quarter INTEGER NOT NULL CHECK (quarter BETWEEN 1 AND 4),
+    table_id VARCHAR(100) NOT NULL,
+    row_order INTEGER NOT NULL DEFAULT 1,
+    cells JSONB NOT NULL DEFAULT '[]',
+    version INTEGER NOT NULL DEFAULT 1,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100)
+);
+
+CREATE INDEX IF NOT EXISTS idx_index1_headers_period
+    ON index1_headers(user_id, form_number, year, quarter);
+
+CREATE INDEX IF NOT EXISTS idx_index1_rows_period
+    ON index1_rows(user_id, form_number, year, quarter, table_id, is_deleted, row_order);
+
+-- =====================================================
 -- ПОЛЬЗОВАТЕЛИ ПО УМОЛЧАНИЮ
 -- Пароли хешированы через bcrypt (admin/admin, admin2/admin2)
 -- =====================================================
