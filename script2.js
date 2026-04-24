@@ -31,6 +31,10 @@ const REGIONS = [
 // Текущая активная вкладка
 let currentPlanTab = 'plan1';
 
+// Временный флаг: автозаполнение факта для плана 5 из Oracle
+// false = ручной ввод (временно), true = снова брать из view_omk_qlick
+const ENABLE_ORACLE_PLAN5_AUTOFILL = false;
+
 // Проверка авторизации
 function checkAuth() {
     const token = localStorage.getItem('accessToken');
@@ -724,7 +728,11 @@ async function loadPlansFromServer() {
         // Подставляем фактические данные из Oracle (если есть)
         applyOraclePlan2();
         applyOraclePlan4();
-        applyOraclePlan5();
+        if (ENABLE_ORACLE_PLAN5_AUTOFILL) {
+            applyOraclePlan5();
+        } else {
+            enableManualPlan5FactInput();
+        }
     }
 }
 
@@ -995,7 +1003,29 @@ const PLAN5_REGIONS_ORDER = [
     'Область Жетысу'
 ];
 
+function enableManualPlan5FactInput() {
+    const tbody = document.getElementById('plan5-tbody');
+    if (!tbody) return;
+
+    const rows = tbody.querySelectorAll('tr');
+    rows.forEach(row => {
+        const factInput = row.querySelector('input[data-plan="5"][data-col="1"]');
+        if (!factInput) return;
+
+        // Роли viewer/viewer_p7/plan_only могут быть заблокированы общей политикой.
+        if (!factInput.disabled) {
+            factInput.readOnly = false;
+            factInput.removeAttribute('readonly');
+            factInput.style.background = '';
+            factInput.style.cursor = '';
+        }
+        factInput.title = 'Ручной ввод (автоподстановка Oracle временно отключена)';
+    });
+}
+
 async function applyOraclePlan5() {
+    if (!ENABLE_ORACLE_PLAN5_AUTOFILL) return;
+
     const token = localStorage.getItem('accessToken');
     try {
         const response = await fetch('/api/plans/oracle-plan5', {
