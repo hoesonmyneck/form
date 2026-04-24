@@ -33,7 +33,7 @@ let currentPlanTab = 'plan1';
 
 // Временный флаг: автозаполнение факта для плана 5 из Oracle
 // false = ручной ввод (временно), true = снова брать из view_omk_qlick
-const ENABLE_ORACLE_PLAN5_AUTOFILL = false;
+const ENABLE_ORACLE_PLAN5_AUTOFILL = true;
 
 // Проверка авторизации
 function checkAuth() {

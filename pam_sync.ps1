@@ -93,11 +93,13 @@ function Run-OracleSync {
     Remove-Item $tmpSql, $tmpOut, $tmpErr -ErrorAction SilentlyContinue
 }
 
-# Для плана 5: REG_ID|INSPECT|OCH — вычисляем процент INSPECT/OCH*100
-# Строки с OCH=0 пропускаем (пустая строка REG_ID=13)
+# Для плана 5:
+#   view_omk_2         -> берём T_1PRIZN_INV (знаменатель)
+#   v_omk_inspect_2    -> берём INSPECT (числитель)
+# Процент = INSPECT / T_1PRIZN_INV * 100
 function Run-OracleSyncPlan5 {
     $PlanId = 5
-    $Sql = "SET PAGESIZE 0`nSET FEEDBACK OFF`nSET HEADING OFF`nSET LINESIZE 100`nSELECT TRIM(TO_CHAR(REG_ID)) || ':' || TRIM(TO_CHAR(ROUND(INSPECT / NULLIF(OCH,0) * 100, 2))) FROM cbdiapp.view_omk_qlick WHERE OCH > 0 ORDER BY REG_ID;`nEXIT;"
+    $Sql = "SET PAGESIZE 0`nSET FEEDBACK OFF`nSET HEADING OFF`nSET LINESIZE 120`nSELECT TRIM(v1.REGION) || ':' || TRIM(TO_CHAR(ROUND((NVL(v2.INSPECT, 0) / NULLIF(v1.T_1PRIZN_INV, 0)) * 100, 2))) FROM cbdiapp.view_omk_2 v1 LEFT JOIN (SELECT TRIM(ID) AS ID, SUM(NVL(INSPECT,0)) AS INSPECT FROM cbdiapp.v_omk_inspect_2 GROUP BY TRIM(ID)) v2 ON TRIM(v1.REG_ID) = v2.ID WHERE NVL(v1.T_1PRIZN_INV, 0) > 0 ORDER BY v1.REG_ID;`nEXIT;"
 
     $tmpSql = "$env:TEMP\ora_5_$PID.sql"
     $tmpOut = "$env:TEMP\ora_5_$PID.txt"
