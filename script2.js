@@ -275,6 +275,12 @@ function lockInput(input) {
     input.style.cursor = 'not-allowed';
 }
 
+function formatNumberToTenths(value) {
+    const num = parseFloat(String(value || '').replace(',', '.'));
+    if (!Number.isFinite(num)) return '';
+    return num.toFixed(1);
+}
+
 function parseCoefficientForColor(value) {
     const raw = String(value || '').trim();
     if (!raw || raw === '—') return null;
@@ -574,8 +580,14 @@ function calculateTotals(planNum) {
         const avgP = cntP > 0 ? sumP / cntP : 0;
         const avgA = cntA > 0 ? sumA / cntA : 0;
 
-        if (totalInputs[0]) totalInputs[0].value = avgP ? avgP.toFixed(1) : '';
-        if (totalInputs[1]) totalInputs[1].value = avgA ? avgA.toFixed(1) : '';
+        if (planNum === 1) {
+            // План 1: строка "Всего" только целыми числами.
+            if (totalInputs[0]) totalInputs[0].value = avgP ? String(Math.round(avgP)) : '';
+            if (totalInputs[1]) totalInputs[1].value = avgA ? String(Math.round(avgA)) : '';
+        } else {
+            if (totalInputs[0]) totalInputs[0].value = avgP ? avgP.toFixed(1) : '';
+            if (totalInputs[1]) totalInputs[1].value = avgA ? avgA.toFixed(1) : '';
+        }
 
         const coeff = clampToPercentRange(avgP > 0 ? (avgA / avgP) * 100 : 0);
         if (totalInputs[2]) totalInputs[2].value = formatCoeff(coeff);
@@ -701,7 +713,12 @@ function restoreTableData(planId, data) {
         
         values.forEach((value, i) => {
             if (inputs[i]) {
-                inputs[i].value = value || '';
+                let normalizedValue = value || '';
+                // План 2: фактический показатель (col=1) храним/показываем до десятых.
+                if (planId === 'plan2' && i === 1) {
+                    normalizedValue = formatNumberToTenths(normalizedValue);
+                }
+                inputs[i].value = normalizedValue;
             }
         });
     });
@@ -1008,7 +1025,7 @@ async function applyOraclePlan2() {
             const factInput = row.querySelector('input[data-plan="2"][data-col="1"]');
             if (!factInput) return;
 
-            const formatted = parseFloat(val).toFixed(2).replace(/\.?0+$/, '');
+            const formatted = parseFloat(val).toFixed(1);
             factInput.value = formatted;
             factInput.readOnly = true;
             factInput.style.background = '#e8f5e9';

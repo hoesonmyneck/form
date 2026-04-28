@@ -255,13 +255,14 @@
                     return false;
                 }
 
-                // Показываем кнопки "Пользователи" и "История" только для admin
+                // "История" доступна admin и planner, "Пользователи" только admin.
+                const hBtn = document.getElementById('historyTabBtn');
+                if (hBtn && (isPlansAdmin || isPlanner)) hBtn.style.display = 'flex';
+
                 if (isPlansAdmin) {
                     currentIsAdmin = true;
                     const btn = document.getElementById('usersTabBtn');
                     if (btn) btn.style.display = 'flex';
-                    const hBtn = document.getElementById('historyTabBtn');
-                    if (hBtn) hBtn.style.display = 'flex';
                 }
 
                 return true;

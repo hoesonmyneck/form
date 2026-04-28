@@ -42,6 +42,7 @@ pool.connect((err, client, release) => {
         `).then(() => {
             console.log('✅ Таблица plan_history готова');
             scheduleFridaySnapshot();
+            scheduleMonthlyPlan7NotesCleanup();
         }).catch(e => console.error('❌ plan_history:', e.message));
 
         // Таблица кэша данных план2 из Oracle (PAM → сервер)
@@ -2336,9 +2337,89 @@ function scheduleFridaySnapshot() {
     scheduleNext();
 }
 
+async function clearPlan7NotesFromSharedPlans(label) {
+    try {
+        const sharedDocResult = await pool.query(
+            `SELECT d.id, d.notes FROM documents d
+               JOIN users u ON d.user_id = u.id
+              WHERE d.type = 'plans' AND u.role = 'admin' AND u.form_type = 'plans'
+              LIMIT 1`
+        );
+
+        if (!sharedDocResult.rows.length) {
+            console.log('Очистка plan7 notes: общий документ plans не найден');
+            return false;
+        }
+
+        const sharedDocId = sharedDocResult.rows[0].id;
+        const notes = sharedDocResult.rows[0].notes || {};
+        const nextNotes = {};
+        let removedCount = 0;
+
+        Object.entries(notes).forEach(([key, value]) => {
+            if (String(key).startsWith('plan7_')) {
+                removedCount += 1;
+            } else {
+                nextNotes[key] = value;
+            }
+        });
+
+        if (removedCount === 0) {
+            console.log(`Очистка plan7 notes: нечего удалять${label ? ' (' + label + ')' : ''}`);
+            return true;
+        }
+
+        await pool.query(
+            `UPDATE documents
+                SET notes = $1, uploaded_at = NOW(), submitted_at = NOW()
+              WHERE id = $2`,
+            [JSON.stringify(nextNotes), sharedDocId]
+        );
+
+        console.log(`🧹 Очистка plan7 notes: удалено ${removedCount} примечаний${label ? ' (' + label + ')' : ''}`);
+        return true;
+    } catch (e) {
+        console.error('❌ Ошибка очистки plan7 notes:', e.message);
+        return false;
+    }
+}
+
+function scheduleMonthlyPlan7NotesCleanup() {
+    const MAX_TIMEOUT_MS = 2147483647; // ~24.8 days
+
+    function getNextRun() {
+        const now = new Date();
+        const runAt = new Date(now.getFullYear(), now.getMonth(), 1, 10, 0, 0, 0);
+        if (now >= runAt) {
+            runAt.setMonth(runAt.getMonth() + 1);
+        }
+        return runAt;
+    }
+
+    function scheduleNext() {
+        const next = getNextRun();
+        const delay = next - new Date();
+
+        if (delay > MAX_TIMEOUT_MS) {
+            // Для длинных интервалов разбиваем ожидание на шаги.
+            setTimeout(scheduleNext, MAX_TIMEOUT_MS);
+            return;
+        }
+
+        console.log(`⏰ Следующая очистка plan7 notes: ${next.toLocaleString('ru-RU')}`);
+        setTimeout(async () => {
+            await clearPlan7NotesFromSharedPlans('авто, первое число 10:00');
+            scheduleNext();
+        }, Math.max(0, delay));
+    }
+
+    scheduleNext();
+}
+
 // GET /api/plans/history — список дат снимков
 app.get('/api/plans/history', authenticateToken, async (req, res) => {
-    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+    const isPlansHistoryAllowed = req.user.formType === 'plans' && (req.user.role === 'admin' || req.user.role === 'planner');
+    if (!isPlansHistoryAllowed) {
         return res.status(403).json({ error: 'Доступ запрещён' });
     }
     try {
@@ -2355,7 +2436,8 @@ app.get('/api/plans/history', authenticateToken, async (req, res) => {
 
 // GET /api/plans/history/:date — данные за конкретную дату
 app.get('/api/plans/history/:date', authenticateToken, async (req, res) => {
-    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+    const isPlansHistoryAllowed = req.user.formType === 'plans' && (req.user.role === 'admin' || req.user.role === 'planner');
+    if (!isPlansHistoryAllowed) {
         return res.status(403).json({ error: 'Доступ запрещён' });
     }
     try {
@@ -2371,7 +2453,8 @@ app.get('/api/plans/history/:date', authenticateToken, async (req, res) => {
 
 // POST /api/plans/snapshot — ручной снимок
 app.post('/api/plans/snapshot', authenticateToken, async (req, res) => {
-    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+    const isPlansHistoryAllowed = req.user.formType === 'plans' && (req.user.role === 'admin' || req.user.role === 'planner');
+    if (!isPlansHistoryAllowed) {
         return res.status(403).json({ error: 'Доступ запрещён' });
     }
     const ok = await takeAutoSnapshot('ручной');

@@ -2179,9 +2179,91 @@ function scheduleFridaySnapshot() {
 
 scheduleFridaySnapshot();
 
+function clearPlan7NotesFromSharedPlansDev(label) {
+    try {
+        const db = readDB();
+        const usersData = readUsers();
+        const adminUser = usersData.users.find(u => u.role === 'admin' && u.formType === 'plans');
+        if (!adminUser) {
+            console.log('Очистка plan7 notes (dev): admin plans не найден');
+            return false;
+        }
+
+        const docIndex = db.documents.findIndex(d => d.userId === adminUser.id && d.type === 'plans');
+        if (docIndex < 0) {
+            console.log('Очистка plan7 notes (dev): общий документ plans не найден');
+            return false;
+        }
+
+        const document = db.documents[docIndex];
+        const notes = document.notes || {};
+        const nextNotes = {};
+        let removedCount = 0;
+
+        Object.entries(notes).forEach(([key, value]) => {
+            if (String(key).startsWith('plan7_')) {
+                removedCount += 1;
+            } else {
+                nextNotes[key] = value;
+            }
+        });
+
+        if (removedCount === 0) {
+            console.log(`Очистка plan7 notes (dev): нечего удалять${label ? ' (' + label + ')' : ''}`);
+            return true;
+        }
+
+        document.notes = nextNotes;
+        document.uploadedAt = new Date().toISOString();
+        document.submittedAt = new Date().toISOString();
+        db.documents[docIndex] = document;
+        writeDB(db);
+
+        console.log(`🧹 Очистка plan7 notes (dev): удалено ${removedCount} примечаний${label ? ' (' + label + ')' : ''}`);
+        return true;
+    } catch (e) {
+        console.error('❌ Ошибка очистки plan7 notes (dev):', e.message);
+        return false;
+    }
+}
+
+function scheduleMonthlyPlan7NotesCleanupDev() {
+    const MAX_TIMEOUT_MS = 2147483647; // ~24.8 days
+
+    function getNextRun() {
+        const now = new Date();
+        const runAt = new Date(now.getFullYear(), now.getMonth(), 1, 10, 0, 0, 0);
+        if (now >= runAt) {
+            runAt.setMonth(runAt.getMonth() + 1);
+        }
+        return runAt;
+    }
+
+    function scheduleNext() {
+        const next = getNextRun();
+        const delay = next - new Date();
+
+        if (delay > MAX_TIMEOUT_MS) {
+            setTimeout(scheduleNext, MAX_TIMEOUT_MS);
+            return;
+        }
+
+        console.log(`⏰ Следующая очистка plan7 notes (dev): ${next.toLocaleString('ru-RU')}`);
+        setTimeout(() => {
+            clearPlan7NotesFromSharedPlansDev('авто, первое число 10:00');
+            scheduleNext();
+        }, Math.max(0, delay));
+    }
+
+    scheduleNext();
+}
+
+scheduleMonthlyPlan7NotesCleanupDev();
+
 // GET /api/plans/history
 app.get('/api/plans/history', authenticateToken, (req, res) => {
-    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+    const isPlansHistoryAllowed = req.user.formType === 'plans' && (req.user.role === 'admin' || req.user.role === 'planner');
+    if (!isPlansHistoryAllowed) {
         return res.status(403).json({ error: 'Доступ запрещён' });
     }
     const history = readHistory();
@@ -2190,7 +2272,8 @@ app.get('/api/plans/history', authenticateToken, (req, res) => {
 
 // GET /api/plans/history/:date
 app.get('/api/plans/history/:date', authenticateToken, (req, res) => {
-    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+    const isPlansHistoryAllowed = req.user.formType === 'plans' && (req.user.role === 'admin' || req.user.role === 'planner');
+    if (!isPlansHistoryAllowed) {
         return res.status(403).json({ error: 'Доступ запрещён' });
     }
     const history = readHistory();
@@ -2201,7 +2284,8 @@ app.get('/api/plans/history/:date', authenticateToken, (req, res) => {
 
 // POST /api/plans/snapshot
 app.post('/api/plans/snapshot', authenticateToken, (req, res) => {
-    if (req.user.formType !== 'plans' || req.user.role !== 'admin') {
+    const isPlansHistoryAllowed = req.user.formType === 'plans' && (req.user.role === 'admin' || req.user.role === 'planner');
+    if (!isPlansHistoryAllowed) {
         return res.status(403).json({ error: 'Доступ запрещён' });
     }
     const ok = takeSnapshotDev('ручной');
