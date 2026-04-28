@@ -264,12 +264,73 @@ function applyColumnRestrictions() {
         const saveBtn = document.getElementById('savePlansBtn');
         if (saveBtn) saveBtn.style.display = 'none';
     }
+
+    // После ограничений ролей возвращаем цветовую подсветку коэффициентов.
+    refreshCoefficientColorsAllPlans();
 }
 
 function lockInput(input) {
     input.disabled = true;
     input.style.background = '#f3f4f6';
     input.style.cursor = 'not-allowed';
+}
+
+function parseCoefficientForColor(value) {
+    const raw = String(value || '').trim();
+    if (!raw || raw === '—') return null;
+
+    const parsePart = (part) => {
+        const normalized = String(part || '').trim().replace(',', '.');
+        if (!normalized) return null;
+        const parsed = parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    if (raw.includes('/')) {
+        const parts = raw.split('/').map(parsePart).filter(Number.isFinite);
+        if (!parts.length) return null;
+        return parts.reduce((sum, n) => sum + n, 0) / parts.length;
+    }
+
+    return parsePart(raw);
+}
+
+function getDefaultCoeffBackground(input) {
+    const row = input?.closest('tr');
+    const isTotalRow = row?.querySelector('td:first-child')?.textContent.trim() === '-';
+    return isTotalRow ? '#e0f2fe' : '#f3f4f6';
+}
+
+function applyCoefficientCellColor(input) {
+    if (!input) return;
+    const value = parseCoefficientForColor(input.value);
+
+    if (!Number.isFinite(value)) {
+        input.style.background = getDefaultCoeffBackground(input);
+        input.style.color = '';
+        return;
+    }
+
+    if (value >= 100) {
+        input.style.background = '#dcfce7'; // green
+        input.style.color = '#14532d';
+    } else if (value >= 80) {
+        input.style.background = '#fef9c3'; // yellow
+        input.style.color = '#713f12';
+    } else {
+        input.style.background = '#fee2e2'; // red
+        input.style.color = '#7f1d1d';
+    }
+}
+
+function refreshCoefficientColorsAllPlans() {
+    for (let planNum = 1; planNum <= 8; planNum++) {
+        const tbody = document.getElementById(`plan${planNum}-tbody`);
+        if (!tbody) continue;
+        const coeffCol = planNum === 7 ? 4 : 2;
+        const coeffInputs = tbody.querySelectorAll(`input[data-plan="${planNum}"][data-col="${coeffCol}"]`);
+        coeffInputs.forEach(applyCoefficientCellColor);
+    }
 }
 
 // Расчет коэффициента исполнения
@@ -327,6 +388,7 @@ function calculateCoefficient(planNum, rowIdx) {
         const bothEmpty = planned1 === 0 && planned2 === 0;
         if (bothEmpty) {
             coefficientInput.value = '';
+            applyCoefficientCellColor(coefficientInput);
             return;
         }
 
@@ -334,14 +396,17 @@ function calculateCoefficient(planNum, rowIdx) {
         if (!hasSlash) {
             if (planned1 === 0) {
                 coefficientInput.value = '';
+                applyCoefficientCellColor(coefficientInput);
                 return;
             }
             const coefficient = clampPercent((actual1 / planned1) * 100);
             coefficientInput.value = formatCoeff(coefficient);
+            applyCoefficientCellColor(coefficientInput);
         } else {
             const c1 = clampPercent(planned1 > 0 ? (actual1 / planned1) * 100 : 0);
             const c2 = clampPercent(planned2 > 0 ? (actual2 / planned2) * 100 : 0);
             coefficientInput.value = `${formatCoeffOrZero(c1)}/${formatCoeffOrZero(c2)}`;
+            applyCoefficientCellColor(coefficientInput);
         }
     } else {
         const planned = parseFloat(plannedInput.value) || 0;
@@ -349,6 +414,7 @@ function calculateCoefficient(planNum, rowIdx) {
         
         if (planned === 0) {
             coefficientInput.value = '';
+            applyCoefficientCellColor(coefficientInput);
             return;
         }
         
@@ -361,6 +427,7 @@ function calculateCoefficient(planNum, rowIdx) {
         }
         
         coefficientInput.value = formatCoeff(coefficient);
+        applyCoefficientCellColor(coefficientInput);
     }
 
     // Пересчитываем строку «Всего» если план авто-рассчитываемый
@@ -445,6 +512,7 @@ function calculateTotals(planNum) {
         const cX = clampToPercentRange(pX > 0 ? (aX / pX * 100) : 0);
         const cY = clampToPercentRange(pY > 0 ? (aY / pY * 100) : 0);
         if (totalInputs[2]) totalInputs[2].value = (cX || cY) ? `${formatCoeffOrZero(cX)}/${formatCoeffOrZero(cY)}` : '';
+        if (totalInputs[2]) applyCoefficientCellColor(totalInputs[2]);
 
     } else if (planNum === 7) {
         // Plan 7 (отображается как 6): расширенная структура
@@ -472,6 +540,7 @@ function calculateTotals(planNum) {
 
         const coeff = clampToPercentRange(avgPP > 0 ? (avgAP / avgPP) * 100 : 0);
         if (totalInputs[4]) totalInputs[4].value = formatCoeff(coeff);
+        if (totalInputs[4]) applyCoefficientCellColor(totalInputs[4]);
 
     } else if (planNum === 3) {
         // План 3: сумма (не среднее)
@@ -488,6 +557,7 @@ function calculateTotals(planNum) {
 
         const coeff = clampToPercentRange(sumP > 0 ? (sumA / sumP) * 100 : 0);
         if (totalInputs[2]) totalInputs[2].value = formatCoeff(coeff);
+        if (totalInputs[2]) applyCoefficientCellColor(totalInputs[2]);
 
     } else {
         // Планы 1, 2, 4, 5: среднее арифметическое
@@ -509,6 +579,7 @@ function calculateTotals(planNum) {
 
         const coeff = clampToPercentRange(avgP > 0 ? (avgA / avgP) * 100 : 0);
         if (totalInputs[2]) totalInputs[2].value = formatCoeff(coeff);
+        if (totalInputs[2]) applyCoefficientCellColor(totalInputs[2]);
     }
 
     // Автообновление всего столбца «Коэффициент исполнения» по той же логике,

@@ -9,11 +9,11 @@
     <header class="header">
         <div class="header-content">
             <h1>🔐 Админ-панель - Планы работы департаментов</h1>
-            <div class="header-actions" style="display: flex; gap: 1rem;">
-                <a href="/index2" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem;">📝 К формам</a>
-                <button id="usersTabBtn" onclick="showSection('users')" style="display:none; background: rgba(255,255,255,0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; align-items: center; gap: 0.5rem;">👥 Пользователи</button>
-                <button id="historyTabBtn" onclick="showSection('history')" style="display:none; background: rgba(255,255,255,0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; align-items: center; gap: 0.5rem;">📅 История</button>
-                <button onclick="location.reload()" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem;">🔄 Обновить</button>
+            <div class="header-actions">
+                <a href="/index2" style="background: rgba(255, 255, 255, 0.2); color: white; border-radius: 6px; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem;">📝 К формам</a>
+                <button id="usersTabBtn" onclick="showSection('users')" style="display:none; background: rgba(255,255,255,0.2); color: white; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem;">👥 Пользователи</button>
+                <button id="historyTabBtn" onclick="showSection('history')" style="display:none; background: rgba(255,255,255,0.2); color: white; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem;">📅 История</button>
+                <button onclick="location.reload()" style="background: rgba(255, 255, 255, 0.2); color: white; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem;">🔄 Обновить</button>
             </div>
         </div>
     </header>
@@ -87,6 +87,43 @@
 
         <!-- ===== Секция истории снимков ===== -->
         <div id="historySection" style="display:none;">
+            <div id="historyAnalytics" style="display:none; background:white; padding:1.5rem 2rem; border-radius:8px; margin-bottom:1.5rem; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                    <h3 style="font-size:1.15rem; font-weight:700; margin:0;">📈 Статистика по истории</h3>
+                    <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+                        <button type="button" id="historyViewRegionsBtn" onclick="setHistoryAnalyticsView('regions')" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; padding:0.3rem 0.7rem; cursor:pointer; font-size:0.78rem; font-weight:600;">Все регионы</button>
+                        <button type="button" id="historyViewDetailBtn" onclick="setHistoryAnalyticsView('detail')" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; padding:0.3rem 0.7rem; cursor:pointer; font-size:0.78rem; font-weight:600;">Динамика по региону</button>
+                        <span id="historyAnalyticsBadge" style="display:none; padding:0.25rem 0.6rem; border-radius:999px; background:#fef3c7; color:#92400e; font-size:0.8rem; font-weight:700;"></span>
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:1rem;">
+                    <div id="historyRegionsPanel" style="border:1px solid #e5e7eb; border-radius:8px; padding:0.9rem;">
+                        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.65rem;">
+                            <div style="font-weight:600;">Регионы: месяцы и недели</div>
+                            <div style="display:flex; align-items:center; gap:0.45rem;">
+                                <label for="historyHeatmapPlanSelect" style="font-size:0.78rem; color:#475569;">План:</label>
+                                <select id="historyHeatmapPlanSelect" onchange="onHistoryHeatmapPlanChange()" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem; min-width:150px;"></select>
+                            </div>
+                        </div>
+                        <div id="historyTopRegionsChart"></div>
+                    </div>
+                    <div id="historyDetailPanel" style="border:1px solid #e5e7eb; border-radius:8px; padding:0.9rem; display:none;">
+                        <div style="font-weight:600; margin-bottom:0.65rem;">Коэф. исполнения по региону и плану</div>
+                        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.8rem;">
+                            <div>
+                                <label for="historyDetailRegionSelect" style="display:block; margin-bottom:0.35rem; font-size:0.78rem; color:#475569;">Регион</label>
+                                <select id="historyDetailRegionSelect" onchange="onHistoryDetailFilterChange()" style="padding:0.5rem 0.65rem; border:1px solid #cbd5e1; border-radius:6px; min-width:220px; font-size:0.85rem;"></select>
+                            </div>
+                            <div>
+                                <label for="historyDetailPlanSelect" style="display:block; margin-bottom:0.35rem; font-size:0.78rem; color:#475569;">План</label>
+                                <select id="historyDetailPlanSelect" onchange="onHistoryDetailFilterChange()" style="padding:0.5rem 0.65rem; border:1px solid #cbd5e1; border-radius:6px; min-width:210px; font-size:0.85rem;"></select>
+                            </div>
+                        </div>
+                        <div id="historyDetailChart"></div>
+                    </div>
+                </div>
+            </div>
+
             <div style="background:white; padding:2rem; border-radius:8px; margin-bottom:1.5rem; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
                     <h2 style="font-size:1.4rem; font-weight:700;">📅 История снимков</h2>
@@ -268,6 +305,1045 @@
         let historyPlans = null;
         let historyNotes = {};
         let currentHistoryTab = 1;
+        let historySnapshotByDate = {};
+        let historyUsingMock = false;
+        const ENABLE_HISTORY_MOCK_FALLBACK = false;
+        const MOCK_HISTORY_MONTHS = 2;
+        const MOCK_HISTORY_MONTH_KEYS = ['03', '04']; // март и апрель для теста
+        const HISTORY_PLANS_FOR_STATS = [1, 2, 3, 4, 5, 7, 8];
+        let historyAnalyticsView = 'regions';
+        const historyTrendView = { mode: 'months', monthKey: '' };
+        const historyHeatmapFilters = { planNumber: 1 };
+        const historyHeatmapSort = { periodKey: '', direction: 'asc' };
+        const historyDetailView = { mode: 'months', monthKey: '' };
+        const historyDetailFilters = { region: '', planNumber: 'all' };
+        const DETAIL_PLAN_COLORS = {
+            1: '#2563eb', // синий
+            2: '#f59e0b', // оранжевый
+            3: '#10b981', // зеленый
+            4: '#8b5cf6', // фиолетовый
+            5: '#ef4444', // красный
+            7: '#06b6d4', // бирюзовый
+            8: '#84cc16'  // лайм
+        };
+
+        function formatDateLabel(isoDate) {
+            if (!isoDate) return '';
+            const [y, m, d] = isoDate.split('-');
+            return `${d}.${m}.${y}`;
+        }
+
+        function formatSnapshotOptionLabel(isoDate) {
+            const [y, m, dd] = isoDate.split('-');
+            const d = new Date(+y, +m - 1, +dd);
+            return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
+        }
+
+        function getMonthKey(isoDate) {
+            return isoDate ? isoDate.slice(0, 7) : '';
+        }
+
+        function formatMonthLabel(monthKey) {
+            if (!monthKey) return '';
+            const [y, m] = monthKey.split('-');
+            const d = new Date(+y, +m - 1, 1);
+            return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+        }
+
+        function parseMetricNumber(value) {
+            if (value === null || value === undefined) return null;
+            const raw = String(value).trim();
+            if (!raw || raw === '—') return null;
+            if (raw.includes('/')) {
+                const parts = raw.split('/').map(p => parseFloat(p.replace(',', '.').trim()));
+                if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) && parts[1] !== 0) {
+                    return (parts[0] / parts[1]) * 100;
+                }
+            }
+            const normalized = raw.replace(',', '.').replace(/[^\d.-]/g, '');
+            if (!normalized) return null;
+            const num = parseFloat(normalized);
+            return Number.isFinite(num) ? num : null;
+        }
+
+        // Для формата процентов вида "100/50" (план 7) возвращаем среднее: 75.
+        function parsePercentPairAverage(value) {
+            if (value === null || value === undefined) return null;
+            const raw = String(value).trim();
+            if (!raw || raw === '—' || !raw.includes('/')) return null;
+            const parts = raw.split('/').map(part => parseMetricNumber(part));
+            const valid = parts.filter(Number.isFinite);
+            if (!valid.length) return null;
+            return valid.reduce((sum, num) => sum + num, 0) / valid.length;
+        }
+
+        function formatStatValue(value) {
+            if (!Number.isFinite(value)) return '—';
+            return value.toFixed(1);
+        }
+
+        function deterministicNoise(seed) {
+            const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+            return x - Math.floor(x);
+        }
+
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function cloneDeep(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        function getBasePlansForMock() {
+            if (historyPlans) return cloneDeep(historyPlans);
+            const sortedDates = Object.keys(historySnapshotByDate).sort();
+            const firstDate = sortedDates.length ? sortedDates[sortedDates.length - 1] : '';
+            if (firstDate && historySnapshotByDate[firstDate]?.plans) return cloneDeep(historySnapshotByDate[firstDate].plans);
+            if (allPlans) return cloneDeep(allPlans);
+            return null;
+        }
+
+        function isTotalRow(row) {
+            return row && (row[0] === '-' || String(row[1] || '').trim().toLowerCase() === 'всего');
+        }
+
+        function mockFormattedNumber(num) {
+            if (!Number.isFinite(num)) return '';
+            return num.toFixed(1).replace('.', ',');
+        }
+
+        function mutateMockRow(planNumber, row, schedulePoint) {
+            if (!Array.isArray(row) || isTotalRow(row)) return row;
+            const next = [...row];
+            const rowNum = parseInt(row[0], 10) || 0;
+
+            // Профиль качества по месяцам: плохой/хороший/плохой/отличный/средний
+            const monthProfiles = [0.73, 1.11, 0.66, 1.19, 0.9];
+            // Волатильность недель внутри месяца: слабая/стабильная/просадка/рывок
+            const weekProfiles = [0.92, 1.01, 0.79, 1.09];
+            const monthFactor = monthProfiles[schedulePoint.monthIndex % monthProfiles.length];
+            const weekFactor = weekProfiles[schedulePoint.weekIndex % weekProfiles.length];
+
+            // Дополнительные кейсы "очень хорошо"/"очень плохо" для тестирования
+            let scenarioShock = 0;
+            if (schedulePoint.monthIndex === 0 && schedulePoint.weekIndex === 2) scenarioShock -= 0.12; // слабая неделя в старом месяце
+            if (schedulePoint.monthIndex === 1 && schedulePoint.weekIndex === 3) scenarioShock += 0.09; // сильная неделя
+            if (schedulePoint.monthIndex === 2 && schedulePoint.weekIndex === 1) scenarioShock -= 0.19; // выраженная просадка
+            if (schedulePoint.monthIndex === 3 && schedulePoint.weekIndex === 0) scenarioShock += 0.12; // отличный старт
+            if (schedulePoint.monthIndex === 4 && schedulePoint.weekIndex === 2) scenarioShock -= 0.08; // умеренная просадка
+
+            const rowNoise = (deterministicNoise((planNumber + 5) * 100 + rowNum * 17 + schedulePoint.globalIndex * 31) - 0.5) * 0.14;
+            const perf = clamp((monthFactor * weekFactor) + scenarioShock + rowNoise, 0.35, 1.45);
+
+            if (planNumber === 7) {
+                const baseCasesRaw = parseMetricNumber(next[2]);
+                const baseCases = Number.isFinite(baseCasesRaw) && baseCasesRaw > 0
+                    ? baseCasesRaw
+                    : (120 + ((rowNum * 11 + planNumber * 9) % 160));
+                const caseNoise = (deterministicNoise(rowNum * 13 + schedulePoint.globalIndex * 19 + 7) - 0.5) * 0.2;
+                const cases = Math.max(35, Math.round(baseCases * (0.95 + caseNoise)));
+
+                const basePlannedQtyRaw = parseMetricNumber(next[3]);
+                const plannedQtyShare = clamp(0.4 + ((rowNum % 5) * 0.06), 0.4, 0.64);
+                const plannedQty = Math.max(
+                    1,
+                    Math.round(
+                        (Number.isFinite(basePlannedQtyRaw) && basePlannedQtyRaw > 0
+                            ? basePlannedQtyRaw
+                            : cases * plannedQtyShare)
+                    )
+                );
+
+                const plannedPctRaw = parseMetricNumber(next[4]);
+                const plannedPct = Number.isFinite(plannedPctRaw) && plannedPctRaw > 0
+                    ? plannedPctRaw
+                    : (cases > 0 ? (plannedQty / cases) * 100 : 0);
+                const actualPct = plannedPct * perf;
+                const coeff = plannedPct > 0 ? (actualPct / plannedPct) * 100 : 0;
+
+                next[2] = String(cases);
+                next[3] = String(plannedQty);
+                next[4] = mockFormattedNumber(plannedPct);
+                next[5] = mockFormattedNumber(actualPct);
+                next[6] = mockFormattedNumber(coeff);
+                return next;
+            }
+
+            const plannedRaw = parseMetricNumber(next[2]);
+            const plannedBase = Number.isFinite(plannedRaw) && plannedRaw > 0
+                ? plannedRaw
+                : (42 + ((rowNum * 7 + planNumber * 13) % 46)); // 42..87
+            const planned = clamp(
+                plannedBase * (0.96 + (deterministicNoise(rowNum * 5 + schedulePoint.globalIndex * 23 + 3) - 0.5) * 0.1),
+                15,
+                99
+            );
+            const actual = planned * perf;
+            const coeff = planned > 0 ? (actual / planned) * 100 : 0;
+
+            next[2] = mockFormattedNumber(planned);
+            next[3] = mockFormattedNumber(actual);
+            next[4] = mockFormattedNumber(coeff);
+            return next;
+        }
+
+        function recalcMockTotalRow(planNumber, rows) {
+            const dataRows = rows.filter(r => Array.isArray(r) && !isTotalRow(r));
+            if (!dataRows.length) return rows;
+
+            if (planNumber === 7) {
+                const sumCases = dataRows.reduce((sum, r) => sum + (parseMetricNumber(r[2]) || 0), 0);
+                const sumPlannedQty = dataRows.reduce((sum, r) => sum + (parseMetricNumber(r[3]) || 0), 0);
+                const avgPlannedPct = dataRows.reduce((sum, r) => sum + (parseMetricNumber(r[4]) || 0), 0) / dataRows.length;
+                const avgActualPct = dataRows.reduce((sum, r) => sum + (parseMetricNumber(r[5]) || 0), 0) / dataRows.length;
+                const coeff = avgPlannedPct > 0 ? (avgActualPct / avgPlannedPct) * 100 : 0;
+                return [
+                    ...dataRows,
+                    ['-', 'Всего', String(Math.round(sumCases)), String(Math.round(sumPlannedQty)), mockFormattedNumber(avgPlannedPct), mockFormattedNumber(avgActualPct), mockFormattedNumber(coeff)]
+                ];
+            }
+
+            const sumPlanned = dataRows.reduce((sum, r) => sum + (parseMetricNumber(r[2]) || 0), 0);
+            const sumActual = dataRows.reduce((sum, r) => sum + (parseMetricNumber(r[3]) || 0), 0);
+            const coeff = sumPlanned > 0 ? (sumActual / sumPlanned) * 100 : 0;
+            return [
+                ...dataRows,
+                ['-', 'Всего', mockFormattedNumber(sumPlanned), mockFormattedNumber(sumActual), mockFormattedNumber(coeff)]
+            ];
+        }
+
+        function buildMockWeeklyScheduleForMonths(monthCount) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const schedule = [];
+            const weekDays = [7, 14, 21, 28];
+            const monthKeys = MOCK_HISTORY_MONTH_KEYS.slice(0, Math.max(1, monthCount));
+
+            monthKeys.forEach((monthKey, monthIndex) => {
+                const month = Math.max(1, Math.min(12, parseInt(monthKey, 10))) - 1;
+                weekDays.forEach((day, weekIndex) => {
+                    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    schedule.push({
+                        date: iso,
+                        monthIndex,
+                        weekIndex,
+                        globalIndex: schedule.length
+                    });
+                });
+            });
+
+            return schedule;
+        }
+
+        function buildMockHistorySnapshots(existingDates) {
+            const basePlans = getBasePlansForMock();
+            if (!basePlans) return [];
+
+            const taken = new Set(existingDates || []);
+            const out = [];
+            const schedule = buildMockWeeklyScheduleForMonths(MOCK_HISTORY_MONTHS);
+            schedule.forEach(point => {
+                if (taken.has(point.date)) return;
+
+                const plans = {};
+                Object.entries(basePlans).forEach(([planKey, rows]) => {
+                    const planNumber = parseInt(planKey.replace('plan', ''), 10);
+                    if (!Array.isArray(rows) || !HISTORY_PLANS_FOR_STATS.includes(planNumber)) {
+                        plans[planKey] = Array.isArray(rows) ? cloneDeep(rows) : rows;
+                        return;
+                    }
+                    const generatedRows = rows.map(r => mutateMockRow(planNumber, r, point));
+                    plans[planKey] = recalcMockTotalRow(planNumber, generatedRows);
+                });
+
+                out.push({ date: point.date, plans, notes: {}, isMock: true });
+            });
+
+            out.sort((a, b) => b.date.localeCompare(a.date));
+            return out;
+        }
+
+        async function preloadHistorySnapshots(dates, token) {
+            const uniqueDates = Array.from(new Set(dates || []));
+            await Promise.all(uniqueDates.map(async date => {
+                if (historySnapshotByDate[date]) return;
+                try {
+                    const r = await fetch(`/api/plans/history/${date}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    const data = await r.json();
+                    if (data.success && data.found) {
+                        historySnapshotByDate[date] = { plans: data.plans, notes: data.notes || {}, isMock: false };
+                    }
+                } catch (e) {
+                    console.error('Ошибка предзагрузки снимка:', date, e);
+                }
+            }));
+        }
+
+        function selectedHistoryDate() {
+            const sel = document.getElementById('historyDateSelect');
+            return sel ? sel.value : '';
+        }
+
+        function getHistoryRowsForPlanFromSnapshot(planNumber, snapshot) {
+            if (!snapshot?.plans) return [];
+            const rows = snapshot.plans[`plan${planNumber}`];
+            if (!Array.isArray(rows)) return [];
+            return rows.filter(r => Array.isArray(r) && !isTotalRow(r));
+        }
+
+        function getRowCoeffForPlan(planNumber, row) {
+            if (!row) return null;
+            const coeffIdx = planNumber === 7 ? 6 : 4;
+            if (planNumber === 7) {
+                const pairAvg = parsePercentPairAverage(row[coeffIdx]);
+                if (Number.isFinite(pairAvg)) return pairAvg;
+            }
+            return parseMetricNumber(row[coeffIdx]);
+        }
+
+        function buildHistorySeries(planNumber) {
+            const dates = Object.keys(historySnapshotByDate).sort();
+            const series = [];
+            dates.forEach(date => {
+                const snapshot = historySnapshotByDate[date];
+                const rows = getHistoryRowsForPlanFromSnapshot(planNumber, snapshot);
+                if (!rows.length) return;
+                const coeffs = rows.map(r => getRowCoeffForPlan(planNumber, r)).filter(Number.isFinite);
+                if (!coeffs.length) return;
+                const avg = coeffs.reduce((sum, v) => sum + v, 0) / coeffs.length;
+                series.push({ date, avgCoeff: avg });
+            });
+            return series;
+        }
+
+        function buildMonthlySeriesFromWeekly(weeklySeries) {
+            const byMonth = {};
+            weeklySeries.forEach(point => {
+                const monthKey = getMonthKey(point.date);
+                if (!monthKey) return;
+                if (!byMonth[monthKey] || point.date > byMonth[monthKey].date) {
+                    byMonth[monthKey] = {
+                        monthKey,
+                        date: point.date,
+                        avgCoeff: point.avgCoeff
+                    };
+                }
+            });
+
+            return Object.values(byMonth)
+                .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+                .map(item => ({ ...item, label: formatMonthLabel(item.monthKey) }));
+        }
+
+        function getWeeksForMonth(weeklySeries, monthKey) {
+            return weeklySeries.filter(p => getMonthKey(p.date) === monthKey);
+        }
+
+        function openTrendMonthDrilldown(monthKey) {
+            historyTrendView.mode = 'weeks';
+            historyTrendView.monthKey = monthKey;
+            renderHistoryAnalytics(currentHistoryTab);
+        }
+
+        function backToTrendMonths() {
+            historyTrendView.mode = 'months';
+            historyTrendView.monthKey = '';
+            renderHistoryAnalytics(currentHistoryTab);
+        }
+
+        function renderTrendBars(weeklySeries, monthlySeries) {
+            const el = document.getElementById('historyTrendChart');
+            if (!el) return;
+            if (!weeklySeries.length) {
+                el.innerHTML = '<div style="padding:0.75rem 0; color:#9ca3af;">Недостаточно данных для графика</div>';
+                return;
+            }
+
+            const isMonthlyMode = historyTrendView.mode !== 'weeks';
+            const weekSeriesForMonth = isMonthlyMode ? [] : getWeeksForMonth(weeklySeries, historyTrendView.monthKey);
+            const activeSeries = isMonthlyMode ? monthlySeries : weekSeriesForMonth;
+
+            if (!activeSeries.length) {
+                historyTrendView.mode = 'months';
+                historyTrendView.monthKey = '';
+                return renderTrendBars(weeklySeries, monthlySeries);
+            }
+
+            const values = activeSeries.map(p => p.avgCoeff);
+            const max = Math.max(...values, 1);
+            const min = Math.min(...values, 0);
+            const range = Math.max(max - min, 1);
+            const bars = activeSeries.map(p => {
+                const h = Math.max(14, ((p.avgCoeff - min) / range) * 120 + 14);
+
+                if (isMonthlyMode) {
+                    const monthShort = String(p.label || '').split(' ')[0];
+                    return `<button type="button" onclick="openTrendMonthDrilldown('${p.monthKey}')" title="Открыть недели: ${p.label}" style="display:flex; flex-direction:column; align-items:center; min-width:64px; flex:1; background:transparent; border:none; cursor:pointer; padding:0;">
+                        <div style="font-size:0.75rem; color:#334155; margin-bottom:0.25rem;">${formatStatValue(p.avgCoeff)}</div>
+                        <div style="width:24px; height:${h}px; border-radius:6px 6px 0 0; background:linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);"></div>
+                        <div style="margin-top:0.35rem; font-size:0.72rem; color:#64748b;">${monthShort}</div>
+                    </button>`;
+                }
+
+                return `<div style="display:flex; flex-direction:column; align-items:center; min-width:52px; flex:1;">
+                    <div style="font-size:0.75rem; color:#334155; margin-bottom:0.25rem;">${formatStatValue(p.avgCoeff)}</div>
+                    <div style="width:20px; height:${h}px; border-radius:6px 6px 0 0; background:linear-gradient(180deg, #14b8a6 0%, #0f766e 100%);"></div>
+                    <div style="margin-top:0.35rem; font-size:0.72rem; color:#64748b;">${formatDateLabel(p.date).slice(0, 5)}</div>
+                </div>`;
+            }).join('');
+
+            const header = isMonthlyMode
+                ? '<div style="font-size:0.8rem; color:#64748b; margin-bottom:0.5rem;">Кликните по месяцу, чтобы увидеть недели</div>'
+                : `<div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                        <div style="font-size:0.8rem; color:#64748b;">Недели за ${formatMonthLabel(historyTrendView.monthKey)}</div>
+                        <button type="button" onclick="backToTrendMonths()" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; padding:0.2rem 0.55rem; cursor:pointer; font-size:0.78rem;">← К месяцам</button>
+                   </div>`;
+
+            el.innerHTML = `${header}<div style="display:flex; align-items:flex-end; gap:0.35rem; min-height:180px; padding:0.25rem 0.25rem 0.5rem; border-bottom:1px dashed #cbd5e1;">${bars}</div>`;
+        }
+
+        function getRegionPeriodData(planNumber) {
+            const dates = Object.keys(historySnapshotByDate).sort();
+            const weekly = [];
+            const regionSeen = new Set();
+
+            dates.forEach(date => {
+                const snapshot = historySnapshotByDate[date];
+                const rows = getHistoryRowsForPlanFromSnapshot(planNumber, snapshot);
+                const regionValues = {};
+                rows.forEach(r => {
+                    const region = String(r[1] || '').trim();
+                    if (!region) return;
+                    regionSeen.add(region);
+                    const coeff = getRowCoeffForPlan(planNumber, r);
+                    if (Number.isFinite(coeff)) regionValues[region] = coeff;
+                });
+                weekly.push({ date, monthKey: getMonthKey(date), regionValues });
+            });
+
+            const monthlyMap = {};
+            weekly.forEach(period => {
+                if (!period.monthKey) return;
+                if (!monthlyMap[period.monthKey] || period.date > monthlyMap[period.monthKey].date) {
+                    monthlyMap[period.monthKey] = period;
+                }
+            });
+            const monthly = Object.values(monthlyMap)
+                .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+                .map(period => ({ ...period, label: formatMonthLabel(period.monthKey) }));
+
+            const regionsFromMaster = REGIONS.filter(r => regionSeen.has(r));
+            const regionsOther = Array.from(regionSeen).filter(r => !regionsFromMaster.includes(r)).sort((a, b) => a.localeCompare(b, 'ru'));
+            return { weekly, monthly, regions: [...regionsFromMaster, ...regionsOther] };
+        }
+
+        function heatColorByCoeff(coeff) {
+            if (!Number.isFinite(coeff)) return '#f8fafc';
+            const clamped = Math.max(0, Math.min(150, coeff));
+            const hue = (clamped / 150) * 120; // 0=red, 120=green
+            return `hsl(${hue}, 78%, 84%)`;
+        }
+
+        function renderRegionsHeatmap(defaultPlanNumber) {
+            const el = document.getElementById('historyTopRegionsChart');
+            if (!el) return;
+
+            const heatmapSelection = syncHistoryHeatmapControls(defaultPlanNumber);
+            const planNumber = heatmapSelection.planNumber;
+            if (!planNumber) {
+                el.innerHTML = '<div style="padding:0.75rem 0; color:#9ca3af;">Нет доступных планов</div>';
+                return;
+            }
+
+            const periodData = getRegionPeriodData(planNumber);
+            if (!periodData.regions.length || !periodData.weekly.length) {
+                el.innerHTML = '<div style="padding:0.75rem 0; color:#9ca3af;">Нет данных по регионам</div>';
+                return;
+            }
+
+            const monthlyMode = historyTrendView.mode !== 'weeks';
+            const periods = monthlyMode
+                ? periodData.monthly
+                : periodData.weekly.filter(p => p.monthKey === historyTrendView.monthKey);
+
+            if (!periods.length) {
+                if (!monthlyMode) {
+                    historyTrendView.mode = 'months';
+                    historyTrendView.monthKey = '';
+                    return renderRegionsHeatmap(planNumber);
+                }
+                el.innerHTML = '<div style="padding:0.75rem 0; color:#9ca3af;">Нет периодов для отображения</div>';
+                return;
+            }
+
+            const sortSource = periodData.monthly.find(period => period.monthKey === historyHeatmapSort.periodKey);
+            const regions = [...periodData.regions];
+            if (sortSource) {
+                regions.sort((a, b) => {
+                    const av = sortSource.regionValues[a];
+                    const bv = sortSource.regionValues[b];
+                    const aFinite = Number.isFinite(av);
+                    const bFinite = Number.isFinite(bv);
+                    if (!aFinite && !bFinite) return a.localeCompare(b, 'ru');
+                    if (!aFinite) return 1;
+                    if (!bFinite) return -1;
+                    if (av === bv) return a.localeCompare(b, 'ru');
+                    return historyHeatmapSort.direction === 'asc' ? av - bv : bv - av;
+                });
+            }
+
+            const headerCells = periods.map(period => {
+                if (monthlyMode) {
+                    const shortLabel = String(period.label || '').split(' ')[0];
+                    const sortIcon = getHeatmapSortIcon(period.monthKey);
+                    return `<th style="position:sticky; top:0; z-index:4; min-width:94px; text-align:center; font-size:0.78rem; background:#f8fafc; border:1px solid #e5e7eb;">
+                        <div style="display:flex; align-items:center; justify-content:center; gap:0.35rem;">
+                            <button type="button" onclick="openTrendMonthDrilldown('${period.monthKey}')" title="Открыть недели ${period.label}" style="background:transparent; border:none; cursor:pointer; color:#1f2937; font-size:0.78rem; padding:0;">${shortLabel}</button>
+                            <button type="button" onclick="toggleHistoryHeatmapSort('${period.monthKey}')" title="Сортировка по ${period.label}" style="background:transparent; border:none; cursor:pointer; color:#475569; font-size:0.78rem; padding:0 0.1rem;">${sortIcon}</button>
+                        </div>
+                    </th>`;
+                }
+                return `<th style="position:sticky; top:0; z-index:4; min-width:70px; text-align:center; font-size:0.75rem; background:#f8fafc; border:1px solid #e5e7eb;">${formatDateLabel(period.date).slice(0, 5)}</th>`;
+            }).join('');
+
+            const bodyRows = regions.map(region => {
+                const cells = periods.map(period => {
+                    const coeff = period.regionValues[region];
+                    const text = Number.isFinite(coeff) ? formatStatValue(coeff) : '—';
+                    const bg = heatColorByCoeff(coeff);
+                    return `<td style="text-align:center; padding:0.35rem; background:${bg}; font-size:0.76rem; border:1px solid #e5e7eb;" title="${region}: ${text}">${text}</td>`;
+                }).join('');
+
+                return `<tr>
+                    <td style="position:sticky; left:0; z-index:1; background:#fff; font-size:0.78rem; font-weight:600; white-space:nowrap; border:1px solid #e5e7eb; padding:0.55rem 0.7rem;">${region}</td>
+                    ${cells}
+                </tr>`;
+            }).join('');
+
+            const modeInfo = monthlyMode
+                ? '<div style="font-size:0.78rem; color:#64748b; margin-bottom:0.5rem;">Клик по месяцу открывает недели; иконка ↕ сортирует регионы</div>'
+                : `<div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                        <div style="font-size:0.78rem; color:#64748b;">Недели за ${formatMonthLabel(historyTrendView.monthKey)}</div>
+                        <button type="button" onclick="backToTrendMonths()" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; padding:0.2rem 0.55rem; cursor:pointer; font-size:0.75rem;">← К месяцам</button>
+                   </div>`;
+
+            const legend = '<div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap; margin-top:0.5rem; font-size:0.72rem; color:#64748b;">' +
+                '<span>Шкала:</span>' +
+                '<span style="display:inline-flex; align-items:center; gap:0.35rem;"><span style="width:14px; height:8px; background:hsl(0,78%,84%); border-radius:3px;"></span>низко</span>' +
+                '<span style="display:inline-flex; align-items:center; gap:0.35rem;"><span style="width:14px; height:8px; background:hsl(60,78%,84%); border-radius:3px;"></span>средне</span>' +
+                '<span style="display:inline-flex; align-items:center; gap:0.35rem;"><span style="width:14px; height:8px; background:hsl(120,78%,84%); border-radius:3px;"></span>высоко</span>' +
+                '</div>';
+
+            el.innerHTML = `${modeInfo}
+                <div style="overflow-x:auto; border:1px solid #e5e7eb; border-radius:8px;">
+                    <table style="border-collapse:collapse; width:max-content; min-width:100%; background:#fff;">
+                        <thead>
+                            <tr>
+                                <th style="position:sticky; left:0; top:0; z-index:5; background:#f1f5f9; min-width:210px; text-align:left; font-size:0.78rem; border:1px solid #e5e7eb; padding:0.55rem 0.7rem;">Регион</th>
+                                ${headerCells}
+                            </tr>
+                        </thead>
+                        <tbody>${bodyRows}</tbody>
+                    </table>
+                </div>
+                ${legend}`;
+        }
+
+        function getDetailMetricForPlan(planNumber, row) {
+            if (!row) return null;
+            return getRowCoeffForPlan(planNumber, row);
+        }
+
+        function buildRegionPlanMetricSeries(planNumber, region) {
+            const dates = Object.keys(historySnapshotByDate).sort();
+            const series = [];
+            dates.forEach(date => {
+                const snapshot = historySnapshotByDate[date];
+                const rows = getHistoryRowsForPlanFromSnapshot(planNumber, snapshot);
+                if (!rows.length) return;
+
+                const row = rows.find(r => String(r[1] || '').trim() === region);
+                if (!row) return;
+
+                const rawMetric = getDetailMetricForPlan(planNumber, row);
+                if (!Number.isFinite(rawMetric)) return;
+
+                series.push({
+                    date,
+                    monthKey: getMonthKey(date),
+                    metric: clamp(rawMetric, 0, 100),
+                    rawMetric
+                });
+            });
+            return series;
+        }
+
+        function buildMonthlyMetricSeriesFromWeekly(weeklySeries) {
+            const byMonth = {};
+            weeklySeries.forEach(point => {
+                if (!point.monthKey) return;
+                if (!byMonth[point.monthKey] || point.date > byMonth[point.monthKey].date) {
+                    byMonth[point.monthKey] = {
+                        monthKey: point.monthKey,
+                        date: point.date,
+                        metric: point.metric,
+                        rawMetric: point.rawMetric
+                    };
+                }
+            });
+
+            return Object.values(byMonth)
+                .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+                .map(item => ({ ...item, label: formatMonthLabel(item.monthKey) }));
+        }
+
+        function getAvailableHistoryPlans() {
+            const plans = HISTORY_PLANS_FOR_STATS.filter(planNumber => {
+                const key = `plan${planNumber}`;
+                return Object.values(historySnapshotByDate).some(snapshot => {
+                    const rows = snapshot?.plans?.[key];
+                    return Array.isArray(rows) && rows.some(r => Array.isArray(r) && !isTotalRow(r));
+                });
+            });
+            return plans.length ? plans : [1];
+        }
+
+        function getAvailableHistoryPlansForDetail() {
+            return getAvailableHistoryPlans();
+        }
+
+        function getRegionsForPlanNumbers(planNumbers) {
+            const regionSeen = new Set();
+            (planNumbers || []).forEach(planNumber => {
+                const periodData = getRegionPeriodData(planNumber);
+                (periodData.regions || []).forEach(region => regionSeen.add(region));
+            });
+            const regionsFromMaster = REGIONS.filter(r => regionSeen.has(r));
+            const regionsOther = Array.from(regionSeen)
+                .filter(r => !regionsFromMaster.includes(r))
+                .sort((a, b) => a.localeCompare(b, 'ru'));
+            return [...regionsFromMaster, ...regionsOther];
+        }
+
+        function getDetailPlanColor(planNumber, index) {
+            if (DETAIL_PLAN_COLORS[planNumber]) return DETAIL_PLAN_COLORS[planNumber];
+            const fallback = ['#2563eb', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16', '#14b8a6'];
+            return fallback[(index || 0) % fallback.length];
+        }
+
+        function setSelectOptions(selectEl, options, selectedValue) {
+            if (!selectEl) return '';
+            selectEl.innerHTML = '';
+
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = String(opt.value);
+                option.textContent = opt.label;
+                selectEl.appendChild(option);
+            });
+
+            if (!options.length) return '';
+            const selectedExists = options.some(opt => String(opt.value) === String(selectedValue));
+            selectEl.value = selectedExists ? String(selectedValue) : String(options[0].value);
+            return selectEl.value;
+        }
+
+        function applyHistoryAnalyticsViewState() {
+            const regionsBtn = document.getElementById('historyViewRegionsBtn');
+            const detailBtn = document.getElementById('historyViewDetailBtn');
+            const regionsPanel = document.getElementById('historyRegionsPanel');
+            const detailPanel = document.getElementById('historyDetailPanel');
+
+            const isRegions = historyAnalyticsView !== 'detail';
+            if (regionsPanel) regionsPanel.style.display = isRegions ? 'block' : 'none';
+            if (detailPanel) detailPanel.style.display = isRegions ? 'none' : 'block';
+
+            const applyBtnState = (btn, isActive) => {
+                if (!btn) return;
+                btn.style.background = isActive ? '#1d4ed8' : '#ffffff';
+                btn.style.color = isActive ? '#ffffff' : '#334155';
+                btn.style.borderColor = isActive ? '#1d4ed8' : '#cbd5e1';
+            };
+
+            applyBtnState(regionsBtn, isRegions);
+            applyBtnState(detailBtn, !isRegions);
+        }
+
+        function setHistoryAnalyticsView(view) {
+            historyAnalyticsView = view === 'detail' ? 'detail' : 'regions';
+            applyHistoryAnalyticsViewState();
+            renderHistoryAnalytics(currentHistoryTab);
+        }
+
+        function getHeatmapSortIcon(monthKey) {
+            if (historyHeatmapSort.periodKey !== monthKey) return '↕';
+            return historyHeatmapSort.direction === 'asc' ? '↑' : '↓';
+        }
+
+        function syncHistoryHeatmapControls(defaultPlanNumber) {
+            const planSelect = document.getElementById('historyHeatmapPlanSelect');
+            if (!planSelect) return { planNumber: 0 };
+
+            const availablePlans = getAvailableHistoryPlans();
+            let nextPlan = historyHeatmapFilters.planNumber || defaultPlanNumber || currentHistoryTab || 1;
+            if (!availablePlans.includes(nextPlan)) nextPlan = availablePlans[0];
+
+            const planOptions = availablePlans.map(planNumber => ({
+                value: planNumber,
+                label: `План № ${PLAN_DISPLAY_NUMS[planNumber] || planNumber}`
+            }));
+            const selectedPlanValue = setSelectOptions(planSelect, planOptions, nextPlan);
+            nextPlan = parseInt(selectedPlanValue, 10) || availablePlans[0];
+            historyHeatmapFilters.planNumber = nextPlan;
+            return { planNumber: nextPlan };
+        }
+
+        function onHistoryHeatmapPlanChange() {
+            const planSelect = document.getElementById('historyHeatmapPlanSelect');
+            const selectedPlan = parseInt(planSelect?.value || '', 10);
+            if (Number.isFinite(selectedPlan)) {
+                historyHeatmapFilters.planNumber = selectedPlan;
+            }
+            historyTrendView.mode = 'months';
+            historyTrendView.monthKey = '';
+            historyHeatmapSort.periodKey = '';
+            historyHeatmapSort.direction = 'asc';
+            renderHistoryAnalytics(currentHistoryTab);
+        }
+
+        function toggleHistoryHeatmapSort(monthKey) {
+            if (!monthKey) return;
+            if (historyHeatmapSort.periodKey !== monthKey) {
+                historyHeatmapSort.periodKey = monthKey;
+                historyHeatmapSort.direction = 'asc';
+            } else {
+                historyHeatmapSort.direction = historyHeatmapSort.direction === 'asc' ? 'desc' : 'asc';
+            }
+            renderHistoryAnalytics(currentHistoryTab);
+        }
+
+        function syncHistoryDetailControls(defaultPlanNumber) {
+            const planSelect = document.getElementById('historyDetailPlanSelect');
+            const regionSelect = document.getElementById('historyDetailRegionSelect');
+            if (!planSelect || !regionSelect) {
+                return { planSelection: 'all', selectedPlans: [], region: '' };
+            }
+
+            const availablePlans = getAvailableHistoryPlansForDetail();
+            let nextPlanSelection = historyDetailFilters.planNumber || 'all';
+            if (nextPlanSelection !== 'all') {
+                const asNum = parseInt(nextPlanSelection, 10);
+                nextPlanSelection = (Number.isFinite(asNum) && availablePlans.includes(asNum)) ? asNum : 'all';
+            }
+
+            const planOptions = [{ value: 'all', label: 'Все планы' }].concat(availablePlans.map(planNumber => ({
+                value: String(planNumber),
+                label: `План № ${PLAN_DISPLAY_NUMS[planNumber] || planNumber}`
+            })));
+            const selectedPlanValue = setSelectOptions(planSelect, planOptions, String(nextPlanSelection));
+            historyDetailFilters.planNumber = selectedPlanValue === 'all'
+                ? 'all'
+                : (parseInt(selectedPlanValue, 10) || availablePlans[0]);
+            const selectedPlans = historyDetailFilters.planNumber === 'all'
+                ? [...availablePlans]
+                : [historyDetailFilters.planNumber];
+
+            const regions = getRegionsForPlanNumbers(selectedPlans);
+            let nextRegion = historyDetailFilters.region;
+            if (!regions.includes(nextRegion)) nextRegion = regions[0] || '';
+
+            const regionOptions = regions.map(regionName => ({ value: regionName, label: regionName }));
+            const selectedRegionValue = setSelectOptions(regionSelect, regionOptions, nextRegion);
+            historyDetailFilters.region = selectedRegionValue || '';
+
+            return {
+                planSelection: historyDetailFilters.planNumber,
+                selectedPlans,
+                region: historyDetailFilters.region
+            };
+        }
+
+        function openHistoryDetailMonthDrilldown(monthKey) {
+            historyDetailView.mode = 'weeks';
+            historyDetailView.monthKey = monthKey;
+            renderHistoryDetailChart();
+        }
+
+        function backToHistoryDetailMonths() {
+            historyDetailView.mode = 'months';
+            historyDetailView.monthKey = '';
+            renderHistoryDetailChart();
+        }
+
+        function onHistoryDetailFilterChange() {
+            const planSelect = document.getElementById('historyDetailPlanSelect');
+            const selectedRaw = planSelect?.value || 'all';
+            const selectedPlan = selectedRaw === 'all' ? 'all' : parseInt(selectedRaw, 10);
+            const planChanged = selectedPlan === 'all'
+                ? historyDetailFilters.planNumber !== 'all'
+                : Number.isFinite(selectedPlan) && selectedPlan !== historyDetailFilters.planNumber;
+            if (planChanged) {
+                historyDetailFilters.planNumber = selectedPlan === 'all' ? 'all' : selectedPlan;
+                historyDetailFilters.region = '';
+                historyDetailView.mode = 'months';
+                historyDetailView.monthKey = '';
+            }
+
+            const regionSelect = document.getElementById('historyDetailRegionSelect');
+            if (regionSelect?.value) {
+                historyDetailFilters.region = regionSelect.value;
+            }
+            renderHistoryDetailChart();
+        }
+
+        function applyHistoryDetailPlanVisualState(groupEl, isDimmed, isActive) {
+            if (!groupEl) return;
+            const planColor = groupEl.dataset.planColor || '#2563eb';
+            const lineEls = groupEl.querySelectorAll('[data-detail-role="line"]');
+            const pointEls = groupEl.querySelectorAll('[data-detail-role="point"]');
+            const valueEls = groupEl.querySelectorAll('[data-detail-role="value"]');
+
+            lineEls.forEach(el => {
+                el.setAttribute('stroke', isDimmed ? '#cbd5e1' : planColor);
+                el.setAttribute('stroke-width', isActive ? '3.1' : '2.2');
+            });
+            pointEls.forEach(el => {
+                el.setAttribute('fill', isDimmed ? '#cbd5e1' : planColor);
+                el.setAttribute('r', isActive ? '4.8' : '4');
+            });
+            valueEls.forEach(el => el.setAttribute('fill', isDimmed ? '#94a3b8' : '#0f172a'));
+            groupEl.style.opacity = isDimmed ? '0.85' : '1';
+        }
+
+        function onHistoryDetailLegendHover(planNumber) {
+            const root = document.getElementById('historyDetailChart');
+            if (!root) return;
+            const target = String(planNumber || '');
+            const svg = root.querySelector('svg');
+            const planGroups = root.querySelectorAll('[data-detail-plan]');
+            const legendItems = root.querySelectorAll('[data-detail-legend-plan]');
+
+            planGroups.forEach(groupEl => {
+                const isTarget = target && groupEl.dataset.detailPlan === target;
+                const isDimmed = target && !isTarget;
+                applyHistoryDetailPlanVisualState(groupEl, isDimmed, isTarget);
+            });
+
+            // Поднимаем выбранный план поверх остальных линий
+            if (svg && target) {
+                const targetGroup = svg.querySelector(`[data-detail-plan="${target}"]`);
+                if (targetGroup) svg.appendChild(targetGroup);
+            }
+
+            legendItems.forEach(itemEl => {
+                const swatch = itemEl.querySelector('[data-detail-legend-swatch]');
+                const itemColor = itemEl.dataset.planColor || '#2563eb';
+                const isDimmed = target && itemEl.dataset.detailLegendPlan !== target;
+                itemEl.style.opacity = isDimmed ? '0.45' : '1';
+                if (swatch) swatch.style.background = isDimmed ? '#cbd5e1' : itemColor;
+            });
+        }
+
+        function onHistoryDetailLegendLeave() {
+            const root = document.getElementById('historyDetailChart');
+            if (!root) return;
+            const svg = root.querySelector('svg');
+            const planGroups = root.querySelectorAll('[data-detail-plan]');
+            const legendItems = root.querySelectorAll('[data-detail-legend-plan]');
+
+            // Возвращаем исходный порядок отрисовки линий
+            if (svg) {
+                const ordered = Array.from(planGroups).sort((a, b) => {
+                    const ai = parseInt(a.dataset.drawOrder || '0', 10);
+                    const bi = parseInt(b.dataset.drawOrder || '0', 10);
+                    return ai - bi;
+                });
+                ordered.forEach(groupEl => svg.appendChild(groupEl));
+            }
+
+            planGroups.forEach(groupEl => applyHistoryDetailPlanVisualState(groupEl, false, false));
+            legendItems.forEach(itemEl => {
+                const swatch = itemEl.querySelector('[data-detail-legend-swatch]');
+                const itemColor = itemEl.dataset.planColor || '#2563eb';
+                itemEl.style.opacity = '1';
+                if (swatch) swatch.style.background = itemColor;
+            });
+        }
+
+        function renderHistoryDetailChart(defaultPlanNumber) {
+            const el = document.getElementById('historyDetailChart');
+            if (!el) return;
+
+            const selection = syncHistoryDetailControls(defaultPlanNumber);
+            if (!selection.selectedPlans.length || !selection.region) {
+                el.innerHTML = '<div style="padding:0.75rem 0; color:#9ca3af;">Нет данных для выбранных фильтров</div>';
+                return;
+            }
+
+            const monthlyMode = historyDetailView.mode !== 'weeks';
+            const seriesByPlan = selection.selectedPlans.map(planNumber => {
+                const weeklySeries = buildRegionPlanMetricSeries(planNumber, selection.region);
+                if (!weeklySeries.length) return null;
+                const activePoints = monthlyMode
+                    ? buildMonthlyMetricSeriesFromWeekly(weeklySeries)
+                    : weeklySeries.filter(point => point.monthKey === historyDetailView.monthKey);
+                if (!activePoints.length) return null;
+                return { planNumber, points: activePoints };
+            }).filter(Boolean);
+
+            if (!seriesByPlan.length) {
+                if (!monthlyMode) {
+                    historyDetailView.mode = 'months';
+                    historyDetailView.monthKey = '';
+                    return renderHistoryDetailChart(defaultPlanNumber);
+                }
+                el.innerHTML = '<div style="padding:0.75rem 0; color:#9ca3af;">Нет данных для выбранного региона и плана</div>';
+                return;
+            }
+
+            const axisKeyForPoint = (point) => monthlyMode ? point.monthKey : point.date;
+            const axisKeySet = new Set();
+            seriesByPlan.forEach(series => {
+                series.points.forEach(point => {
+                    const key = axisKeyForPoint(point);
+                    if (key) axisKeySet.add(key);
+                });
+            });
+            const axisKeys = Array.from(axisKeySet).sort((a, b) => a.localeCompare(b));
+            if (!axisKeys.length) {
+                el.innerHTML = '<div style="padding:0.75rem 0; color:#9ca3af;">Нет данных для отображения графика</div>';
+                return;
+            }
+            const axisItems = axisKeys.map(key => ({
+                key,
+                monthKey: monthlyMode ? key : key.slice(0, 7),
+                label: monthlyMode
+                    ? String(formatMonthLabel(key)).split(' ')[0]
+                    : formatDateLabel(key).slice(0, 5)
+            }));
+
+            const chartPadding = { top: 20, right: 16, bottom: 30, left: 34 };
+            const plotHeight = 130;
+            const hostWidth = Math.max(0, (el.clientWidth || 0) - 24);
+            const minPlotByPoints = Math.max(220, (axisItems.length - 1) * 120);
+            const plotWidth = Math.max(minPlotByPoints, hostWidth - chartPadding.left - chartPadding.right);
+            const svgWidth = chartPadding.left + plotWidth + chartPadding.right;
+            const svgHeight = chartPadding.top + plotHeight + chartPadding.bottom;
+            const pointInset = Math.max(18, Math.min(36, plotWidth * 0.06));
+            const xStart = chartPadding.left + pointInset;
+            const xEnd = chartPadding.left + plotWidth - pointInset;
+
+            const xFor = (idx) => {
+                if (axisItems.length <= 1) return chartPadding.left + (plotWidth / 2);
+                return xStart + (idx / (axisItems.length - 1)) * (xEnd - xStart);
+            };
+            const yFor = (metric) => chartPadding.top + ((100 - clamp(metric, 0, 100)) / 100) * plotHeight;
+
+            const gridValues = [0, 25, 50, 75, 100];
+            const gridLines = gridValues.map(v => {
+                const y = yFor(v);
+                return `<line x1="${chartPadding.left}" y1="${y}" x2="${chartPadding.left + plotWidth}" y2="${y}" stroke="#e2e8f0" stroke-width="1" />
+                    <text x="${chartPadding.left - 6}" y="${y + 3}" text-anchor="end" font-size="10" fill="#64748b">${v}</text>`;
+            }).join('');
+
+            const showPointValues = seriesByPlan.length === 1;
+            const lineLayers = seriesByPlan.map((series, lineIndex) => {
+                const color = getDetailPlanColor(series.planNumber, lineIndex);
+                const metricMap = new Map(series.points.map(point => [axisKeyForPoint(point), clamp(point.metric, 0, 100)]));
+                const coords = axisItems.map((axis, axisIndex) => {
+                    const metric = metricMap.get(axis.key);
+                    if (!Number.isFinite(metric)) return null;
+                    return { metric, x: xFor(axisIndex), y: yFor(metric) };
+                }).filter(Boolean);
+
+                const polyline = coords.length > 1
+                    ? `<polyline points="${coords.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />`
+                    : '';
+                const nodes = coords.map(point => {
+                    const labelText = showPointValues
+                        ? `<text data-detail-role="value" x="${point.x}" y="${point.y - 8}" text-anchor="middle" font-size="10" fill="#0f172a">${formatStatValue(point.metric)}</text>`
+                        : '';
+                    return `<g>
+                        <circle data-detail-role="point" cx="${point.x}" cy="${point.y}" r="4" fill="${color}" stroke="#ffffff" stroke-width="1.4"></circle>
+                        ${labelText}
+                    </g>`;
+                }).join('');
+                const lineMarkup = polyline
+                    ? polyline.replace('<polyline ', '<polyline data-detail-role="line" ')
+                    : '';
+                return `<g data-detail-plan="${series.planNumber}" data-plan-color="${color}" data-draw-order="${lineIndex}">${lineMarkup}${nodes}</g>`;
+            }).join('');
+
+            const xLabels = axisItems.map((axis, idx) => {
+                const y = chartPadding.top + plotHeight + 18;
+                if (monthlyMode) {
+                    return `<g onclick="openHistoryDetailMonthDrilldown('${axis.monthKey}')" style="cursor:pointer;">
+                        <text x="${xFor(idx)}" y="${y}" text-anchor="middle" font-size="10.5" fill="#1e293b">${axis.label}</text>
+                    </g>`;
+                }
+                return `<text x="${xFor(idx)}" y="${y}" text-anchor="middle" font-size="10.5" fill="#64748b">${axis.label}</text>`;
+            }).join('');
+
+            const legend = `<div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.55rem;" onmouseleave="onHistoryDetailLegendLeave()">${
+                seriesByPlan.map((series, idx) => {
+                    const color = getDetailPlanColor(series.planNumber, idx);
+                    return `<span data-detail-legend-plan="${series.planNumber}" data-plan-color="${color}" onmouseenter="onHistoryDetailLegendHover(${series.planNumber})" style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.75rem; color:#334155; cursor:default; transition:opacity 0.15s ease;">
+                        <span data-detail-legend-swatch style="display:inline-block; width:14px; height:3px; border-radius:2px; background:${color}; transition:background 0.15s ease;"></span>
+                        <span>План № ${PLAN_DISPLAY_NUMS[series.planNumber] || series.planNumber}</span>
+                    </span>`;
+                }).join('')
+            }</div>`;
+
+            const header = monthlyMode
+                ? `<div style="font-size:0.78rem; color:#64748b; margin-bottom:0.45rem;">Линия: по месяцам (клик по месяцу — недели)</div>`
+                : `<div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.45rem;">
+                        <div style="font-size:0.78rem; color:#64748b;">Недели за ${formatMonthLabel(historyDetailView.monthKey)} (ось Y: 0-100)</div>
+                        <button type="button" onclick="backToHistoryDetailMonths()" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; padding:0.2rem 0.55rem; cursor:pointer; font-size:0.75rem;">← К месяцам</button>
+                   </div>`;
+
+            el.innerHTML = `${header}
+                ${legend}
+                <div style="overflow-x:auto; border:1px dashed #cbd5e1; border-radius:8px; padding:0.35rem 0.25rem; background:#fcfdff;">
+                    <svg width="100%" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" preserveAspectRatio="none" role="img" aria-label="Линейная динамика коэффициента исполнения">
+                        ${gridLines}
+                        ${lineLayers}
+                        ${xLabels}
+                    </svg>
+                </div>`;
+        }
+
+        function renderHistoryAnalytics(planNumber) {
+            const box = document.getElementById('historyAnalytics');
+            const badge = document.getElementById('historyAnalyticsBadge');
+            if (!box) return;
+            const allDates = Object.keys(historySnapshotByDate);
+            if (!allDates.length) {
+                box.style.display = 'none';
+                return;
+            }
+
+            box.style.display = 'block';
+            badge.style.display = historyUsingMock ? 'inline-flex' : 'none';
+            badge.textContent = historyUsingMock ? 'ТЕСТ: моковые данные' : '';
+            applyHistoryAnalyticsViewState();
+
+            const weeklySeries = buildHistorySeries(planNumber);
+            if (!weeklySeries.length) {
+                if (historyAnalyticsView === 'detail') {
+                    renderHistoryDetailChart(planNumber);
+                } else {
+                    renderRegionsHeatmap(planNumber);
+                }
+                return;
+            }
+
+            if (historyAnalyticsView === 'detail') {
+                renderHistoryDetailChart(planNumber);
+            } else {
+                renderRegionsHeatmap(planNumber);
+            }
+        }
 
         async function loadHistoryList() {
             const token = localStorage.getItem('accessToken');
@@ -275,20 +1351,54 @@
                 const r = await fetch('/api/plans/history', { headers: { 'Authorization': `Bearer ${token}` } });
                 const data = await r.json();
                 const sel = document.getElementById('historyDateSelect');
+                const previousSelection = sel.value;
                 sel.innerHTML = '<option value="">— Выберите дату —</option>';
+                historySnapshotByDate = {};
+                historyUsingMock = false;
+
+                const snapshotDates = [];
                 if (data.success && data.snapshots && data.snapshots.length) {
-                    document.getElementById('historyEmpty').style.display = 'none';
                     data.snapshots.forEach(s => {
+                        snapshotDates.push(s.date);
                         const opt = document.createElement('option');
                         opt.value = s.date;
-                        const [y, m, dd] = s.date.split('-');
-                        const d = new Date(+y, +m - 1, +dd);
-                        const label = d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
-                        opt.textContent = label;
+                        opt.textContent = formatSnapshotOptionLabel(s.date);
                         sel.appendChild(opt);
                     });
+                    await preloadHistorySnapshots(snapshotDates, token);
+                }
+
+                const requiredHistoryPoints = MOCK_HISTORY_MONTH_KEYS.length * 4;
+                if (ENABLE_HISTORY_MOCK_FALLBACK && snapshotDates.length < requiredHistoryPoints) {
+                    const mocks = buildMockHistorySnapshots(snapshotDates);
+                    if (mocks.length) {
+                        historyUsingMock = true;
+                        mocks.forEach(m => {
+                            historySnapshotByDate[m.date] = { plans: m.plans, notes: m.notes, isMock: true };
+                            const exists = Array.from(sel.options).some(opt => opt.value === m.date);
+                            if (!exists) {
+                                const opt = document.createElement('option');
+                                opt.value = m.date;
+                                opt.textContent = `${formatSnapshotOptionLabel(m.date)} [mock]`;
+                                sel.appendChild(opt);
+                            }
+                        });
+                    }
+                }
+
+                const availableDates = Array.from(sel.options).map(opt => opt.value).filter(Boolean).sort((a, b) => b.localeCompare(a));
+                document.getElementById('historyEmpty').style.display = availableDates.length ? 'none' : 'block';
+
+                if (availableDates.length) {
+                    const preferred = previousSelection;
+                    sel.value = availableDates.includes(preferred) ? preferred : availableDates[0];
+                    await loadHistorySnapshot();
                 } else {
-                    document.getElementById('historyEmpty').style.display = 'block';
+                    historyPlans = null;
+                    historyNotes = {};
+                    document.getElementById('historyContent').style.display = 'none';
+                    document.getElementById('historyMeta').style.display = 'none';
+                    renderHistoryAnalytics(currentHistoryTab);
                 }
             } catch (e) { console.error('Ошибка загрузки истории:', e); }
         }
@@ -298,15 +1408,14 @@
             if (!date) {
                 document.getElementById('historyContent').style.display = 'none';
                 document.getElementById('historyMeta').style.display = 'none';
+                renderHistoryAnalytics(currentHistoryTab);
                 return;
             }
-            const token = localStorage.getItem('accessToken');
             try {
-                const r = await fetch(`/api/plans/history/${date}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                const data = await r.json();
-                if (data.success && data.found) {
-                    historyPlans = data.plans;
-                    historyNotes = data.notes || {};
+                const cached = historySnapshotByDate[date];
+                if (cached) {
+                    historyPlans = cached.plans;
+                    historyNotes = cached.notes || {};
                     const [y, m, dd] = date.split('-');
                     const d = new Date(+y, +m - 1, +dd);
                     document.getElementById('historyMeta').textContent =
@@ -315,10 +1424,49 @@
                     document.getElementById('historyContent').style.display = 'block';
                     currentHistoryTab = 1;
                     document.querySelectorAll('#historyTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+                    historyTrendView.mode = 'months';
+                    historyTrendView.monthKey = '';
+                    historyHeatmapFilters.planNumber = 1;
+                    historyHeatmapSort.periodKey = '';
+                    historyHeatmapSort.direction = 'asc';
+                    historyDetailView.mode = 'months';
+                    historyDetailView.monthKey = '';
+                    historyDetailFilters.planNumber = 'all';
+                    historyDetailFilters.region = '';
                     renderHistoryTable(1);
+                    renderHistoryAnalytics(1);
                 } else {
-                    console.log('Снимок не найден:', data);
-                    document.getElementById('historyContent').style.display = 'none';
+                    const token = localStorage.getItem('accessToken');
+                    const r = await fetch(`/api/plans/history/${date}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    const data = await r.json();
+                    if (data.success && data.found) {
+                        historySnapshotByDate[date] = { plans: data.plans, notes: data.notes || {}, isMock: false };
+                        historyPlans = data.plans;
+                        historyNotes = data.notes || {};
+                        const [y, m, dd] = date.split('-');
+                        const d = new Date(+y, +m - 1, +dd);
+                        document.getElementById('historyMeta').textContent =
+                            `Снимок за ${d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+                        document.getElementById('historyMeta').style.display = 'block';
+                        document.getElementById('historyContent').style.display = 'block';
+                        currentHistoryTab = 1;
+                        document.querySelectorAll('#historyTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+                        historyTrendView.mode = 'months';
+                        historyTrendView.monthKey = '';
+                        historyHeatmapFilters.planNumber = 1;
+                        historyHeatmapSort.periodKey = '';
+                        historyHeatmapSort.direction = 'asc';
+                        historyDetailView.mode = 'months';
+                        historyDetailView.monthKey = '';
+                        historyDetailFilters.planNumber = 'all';
+                        historyDetailFilters.region = '';
+                        renderHistoryTable(1);
+                        renderHistoryAnalytics(1);
+                    } else {
+                        console.log('Снимок не найден:', data);
+                        document.getElementById('historyContent').style.display = 'none';
+                        renderHistoryAnalytics(currentHistoryTab);
+                    }
                 }
             } catch (e) { console.error('Ошибка загрузки снимка:', e); }
         }
@@ -330,7 +1478,17 @@
                 const m = b.getAttribute('onclick').match(/switchHistoryTab\((\d+)\)/);
                 if (m) b.classList.toggle('active', parseInt(m[1]) === n);
             });
+            historyTrendView.mode = 'months';
+            historyTrendView.monthKey = '';
+            historyHeatmapFilters.planNumber = n;
+            historyHeatmapSort.periodKey = '';
+            historyHeatmapSort.direction = 'asc';
+            historyDetailView.mode = 'months';
+            historyDetailView.monthKey = '';
+            historyDetailFilters.planNumber = 'all';
+            historyDetailFilters.region = '';
             renderHistoryTable(n);
+            renderHistoryAnalytics(n);
         }
 
         function renderHistoryTable(planNumber) {
