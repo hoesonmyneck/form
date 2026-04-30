@@ -114,8 +114,11 @@ function checkAuth() {
     return true;
 }
 
-// Хранилище примечаний
+// Хранилище примечаний (ключ: `${planId}_${rowIdx}_${colIdx}`)
 const notes = {};
+// Флаг: успели ли мы загрузить заметки с сервера хотя бы один раз.
+// Без этого нельзя отправлять "scoped" сохранение, иначе сотрём чужие заметки.
+let notesLoadedFromServer = false;
 
 // Планы, для которых строка «Всего» рассчитывается автоматически
 const AUTO_TOTAL_PLANS = [1, 2, 3, 4, 5, 7, 8];
@@ -613,16 +616,14 @@ function showNoteModal(planId, rowIdx, colIdx) {
     
     saveBtn.onclick = () => {
         const noteValue = textarea.value.trim();
+        const input = document.querySelector(`input[data-plan="${planId.replace('plan', '')}"][data-row="${rowIdx}"][data-col="${colIdx}"]`);
+        const btn = input ? input.nextElementSibling : null;
         if (noteValue) {
             notes[noteKey] = noteValue;
-            // Подсвечиваем кнопку если есть примечание
-            const input = document.querySelector(`input[data-plan="${planId.replace('plan', '')}"][data-row="${rowIdx}"][data-col="${colIdx}"]`);
-            if (input) {
-                const btn = input.nextElementSibling;
-                if (btn) btn.style.background = '#fbbf24';
-            }
+            if (btn && btn.classList.contains('note-btn')) btn.style.background = '#fbbf24';
         } else {
             delete notes[noteKey];
+            if (btn && btn.classList.contains('note-btn')) btn.style.background = '';
         }
         modal.classList.remove('active');
     };
@@ -746,6 +747,13 @@ async function saveAllPlans() {
     const dateEl = document.getElementById(`${planId}-date`);
     if (dateEl) planDates[planId] = dateEl.value;
 
+    // ВАЖНО: scoped-сохранение заметок безопасно только если мы уже
+    // подтянули заметки с сервера. Иначе пустой набор сотрёт чужие правки.
+    const payload = { plans, notes: notesToSave, planDates };
+    if (notesLoadedFromServer) {
+        payload.notesPlanScope = planId;
+    }
+
     try {
         const response = await fetch('/api/plans/save', {
             method: 'POST',
@@ -753,7 +761,7 @@ async function saveAllPlans() {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ plans, notes: notesToSave, planDates })
+            body: JSON.stringify(payload)
         });
         
         const result = await response.json();
@@ -791,20 +799,30 @@ async function loadPlansFromServer() {
             // Ставим актуальную дату (текущий день по Астане)
             setDefaultDates();
 
-            // Восстанавливаем примечания
-            if (result.notes) {
-                Object.assign(notes, result.notes);
-                // Подсвечиваем кнопки с примечаниями
-                for (let key in result.notes) {
-                    const [planId, rowIdx, colIdx] = key.split('_');
-                    const planNum = planId.replace('plan', '');
-                    const input = document.querySelector(`input[data-plan="${planNum}"][data-row="${rowIdx}"][data-col="${colIdx}"]`);
-                    if (input) {
-                        const btn = input.nextElementSibling;
-                        if (btn) btn.style.background = '#fbbf24';
-                    }
+            // Полностью пересоздаём локальный кэш примечаний и подсветку кнопок,
+            // чтобы не "воскрешать" удалённые на сервере заметки и не оставлять
+            // подсветку у тех, кого больше нет.
+            Object.keys(notes).forEach(k => delete notes[k]);
+            document.querySelectorAll('.note-btn').forEach(btn => { btn.style.background = ''; });
+
+            const incomingNotes = result.notes || {};
+            for (const key in incomingNotes) {
+                // Служебные ключи (начинаются с "__") не трогаем
+                if (key.startsWith('__')) continue;
+                // Валидируем формат plan{N}_{row}_{col}
+                const m = key.match(/^plan(\d+)_(\d+)_(\d+)$/);
+                if (!m) continue;
+                const value = incomingNotes[key];
+                if (value === '' || value == null) continue;
+                notes[key] = value;
+                const [, planNum, rowIdx, colIdx] = m;
+                const input = document.querySelector(`input[data-plan="${planNum}"][data-row="${rowIdx}"][data-col="${colIdx}"]`);
+                if (input) {
+                    const btn = input.nextElementSibling;
+                    if (btn && btn.classList.contains('note-btn')) btn.style.background = '#fbbf24';
                 }
             }
+            notesLoadedFromServer = true;
         }
     } catch (error) {
         console.error('Ошибка загрузки:', error);

@@ -91,8 +91,8 @@ if (!fs.existsSync(USERS_FILE)) {
 // =====================================================
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // =====================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -1692,12 +1692,44 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) =
 app.post('/api/plans/save', authenticateToken, (req, res) => {
     // planner может сохранять плановые значения
     try {
-        const { plans, notes, planDates } = req.body;
+        const { plans, notes, planDates, notesPlanScope } = req.body;
         if (!plans) return res.status(400).json({ error: 'Отсутствуют данные планов' });
 
         const db = readDB();
         const usersData = readUsers();
         const regionIndex = REGION_USERS[req.user.username];
+
+        // Если указан notesPlanScope, синхронизируем notes только для этого плана:
+        // ключи `${scope}_*` полностью заменяются присланным набором,
+        // остальные планы не трогаем.
+        const applyNotesScoped = (currentNotes, incomingNotes, scopePlanId) => {
+            const next = { ...(currentNotes || {}) };
+            const incoming = incomingNotes || {};
+
+            if (scopePlanId) {
+                const scopePrefix = `${scopePlanId}_`;
+                Object.keys(next).forEach((key) => {
+                    if (key.startsWith(scopePrefix)) {
+                        delete next[key];
+                    }
+                });
+                Object.entries(incoming).forEach(([key, value]) => {
+                    if (key.startsWith(scopePrefix) && value !== '' && value != null) {
+                        next[key] = value;
+                    }
+                });
+            } else {
+                Object.entries(incoming).forEach(([key, value]) => {
+                    if (value === '' || value == null) {
+                        delete next[key];
+                    } else {
+                        next[key] = value;
+                    }
+                });
+            }
+
+            return next;
+        };
 
         // Находим пользователя-администратора планов (владельца общего документа)
         const adminUser = usersData.users.find(u => u.role === 'admin' && u.formType === 'plans');
@@ -1729,16 +1761,16 @@ app.post('/api/plans/save', authenticateToken, (req, res) => {
                     sharedPlans[planId][regionIndex] = plans[planId][regionIndex];
                 }
             }
-            Object.assign(sharedNotes, notes || {});
+            sharedNotes = applyNotesScoped(sharedNotes, notes, notesPlanScope);
             console.log(`📝 Обновлена строка [${regionIndex}] от ${req.user.username}`);
         } else {
-            // Администратор: перезаписывает всю таблицу
+            // Администратор / planner: перезаписывает выбранные планы
             for (let i = 1; i <= 8; i++) {
                 const planId = `plan${i}`;
                 if (plans[planId]) sharedPlans[planId] = plans[planId];
             }
-            Object.assign(sharedNotes, notes || {});
-            console.log(`📝 Обновлены все планы от admin (${req.user.username})`);
+            sharedNotes = applyNotesScoped(sharedNotes, notes, notesPlanScope);
+            console.log(`📝 Обновлены планы от ${req.user.username}${notesPlanScope ? ` (notes scope: ${notesPlanScope})` : ''}`);
         }
 
         // planDates обновляется только админом
