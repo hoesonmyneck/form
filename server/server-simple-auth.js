@@ -2223,12 +2223,12 @@ function scheduleMonthEndSnapshotDev() {
     function getNextRun() {
         const now = new Date();
         const lastDay = lastDayOf(now.getFullYear(), now.getMonth());
-        let next = new Date(now.getFullYear(), now.getMonth(), lastDay, 21, 0, 0, 0);
+        let next = new Date(now.getFullYear(), now.getMonth(), lastDay, 23, 0, 0, 0);
         if (now >= next) {
             const nm = now.getMonth() + 1;
             const y = now.getFullYear() + Math.floor(nm / 12);
             const m = nm % 12;
-            next = new Date(y, m, lastDayOf(y, m), 21, 0, 0, 0);
+            next = new Date(y, m, lastDayOf(y, m), 23, 0, 0, 0);
         }
         return next;
     }

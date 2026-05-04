@@ -2386,13 +2386,13 @@ function scheduleMonthEndSnapshot() {
     function getNextRun() {
         const now = new Date();
         const lastDay = getLastDayOfMonth(now.getFullYear(), now.getMonth());
-        let next = new Date(now.getFullYear(), now.getMonth(), lastDay, 21, 0, 0, 0);
+        let next = new Date(now.getFullYear(), now.getMonth(), lastDay, 23, 0, 0, 0);
         if (now >= next) {
             // Берём последний день следующего месяца
             const nextMonth = now.getMonth() + 1;
             const y = now.getFullYear() + Math.floor(nextMonth / 12);
             const m = nextMonth % 12;
-            next = new Date(y, m, getLastDayOfMonth(y, m), 21, 0, 0, 0);
+            next = new Date(y, m, getLastDayOfMonth(y, m), 23, 0, 0, 0);
         }
         return next;
     }
