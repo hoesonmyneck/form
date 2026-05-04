@@ -129,15 +129,61 @@
                     <h2 style="font-size:1.4rem; font-weight:700;">📅 История снимков</h2>
                     <button onclick="takeSnapshotNow()" id="snapshotBtn" style="padding:0.75rem 1.5rem; background:#059669; color:white; border:none; border-radius:6px; font-size:0.95rem; font-weight:600; cursor:pointer;">📸 Сохранить снимок сейчас</button>
                 </div>
-                <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+                <div style="display:flex; align-items:flex-end; gap:1rem; flex-wrap:wrap;">
                     <div>
                         <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">Дата снимка:</label>
                         <select id="historyDateSelect" onchange="loadHistorySnapshot()" style="padding:0.75rem 1rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; min-width:220px; cursor:pointer;">
                             <option value="">— Выберите дату —</option>
                         </select>
                     </div>
-                    <div id="historyMeta" style="display:none; margin-top:1.2rem; padding:0.5rem 1rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; color:#166534; font-size:0.9rem;"></div>
+                    <div>
+                        <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">План:</label>
+                        <select id="historySinglePlanSelect" style="padding:0.75rem 1rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; min-width:180px; cursor:pointer;">
+                            <option value="all">Все планы</option>
+                            <option value="1">План № 1</option>
+                            <option value="2">План № 2</option>
+                            <option value="3">План № 3</option>
+                            <option value="4">План № 4</option>
+                            <option value="5">План № 5</option>
+                            <option value="7">План № 6</option>
+                            <option value="8">План № 7</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button id="downloadSingleSnapshotBtn" onclick="downloadSelectedSnapshot()" disabled style="padding:0.75rem 1.2rem; background:#2563eb; color:white; border:none; border-radius:6px; font-size:0.9rem; font-weight:600; cursor:pointer; opacity:0.6;">📄 Скачать выбранный день</button>
+                    </div>
                 </div>
+
+                <div style="margin-top:1.25rem; padding-top:1.25rem; border-top:1px dashed #e5e7eb;">
+                    <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem; color:#374151;">📦 Скачать сводный отчёт за период</h3>
+                    <div style="display:flex; align-items:flex-end; gap:1rem; flex-wrap:wrap;">
+                        <div>
+                            <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">Месяц:</label>
+                            <select id="historyMonthSelect" onchange="updateHistoryDownloadButtons()" style="padding:0.75rem 1rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; min-width:220px; cursor:pointer;">
+                                <option value="">— Выберите месяц —</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.9rem;">План:</label>
+                            <select id="historyPeriodPlanSelect" style="padding:0.75rem 1rem; border:2px solid #e5e7eb; border-radius:6px; font-size:1rem; min-width:180px; cursor:pointer;">
+                                <option value="all">Все планы</option>
+                                <option value="1">План № 1</option>
+                                <option value="2">План № 2</option>
+                                <option value="3">План № 3</option>
+                                <option value="4">План № 4</option>
+                                <option value="5">План № 5</option>
+                                <option value="7">План № 6</option>
+                                <option value="8">План № 7</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button id="downloadPeriodBtn" onclick="downloadHistoryPeriod()" disabled style="padding:0.75rem 1.2rem; background:#7c3aed; color:white; border:none; border-radius:6px; font-size:0.9rem; font-weight:600; cursor:pointer; opacity:0.6;">📥 Скачать отчёт за месяц</button>
+                        </div>
+                        <div id="historyPeriodHint" style="font-size:0.85rem; color:#6b7280;"></div>
+                    </div>
+                </div>
+
+                <div id="historyMeta" style="display:none; margin-top:1.2rem; padding:0.5rem 1rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; color:#166534; font-size:0.9rem;"></div>
                 <div id="historyEmpty" style="display:none; margin-top:1rem; color:#9ca3af; font-size:0.95rem;">История пуста. Первый снимок сохранится в ближайшую пятницу или нажмите кнопку выше.</div>
             </div>
 
@@ -1401,6 +1447,9 @@
                     document.getElementById('historyMeta').style.display = 'none';
                     renderHistoryAnalytics(currentHistoryTab);
                 }
+
+                populateHistoryMonthSelect();
+                updateHistoryDownloadButtons();
             } catch (e) { console.error('Ошибка загрузки истории:', e); }
         }
 
@@ -1470,6 +1519,219 @@
                     }
                 }
             } catch (e) { console.error('Ошибка загрузки снимка:', e); }
+            updateHistoryDownloadButtons();
+        }
+
+        // Месяцы (RU именительный падеж) для лейблов выпадашки
+        const HISTORY_MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+        // Заполнить выпадашку «Месяц» уникальными месяцами из снимков (только реальные, не mock)
+        function populateHistoryMonthSelect() {
+            const select = document.getElementById('historyMonthSelect');
+            if (!select) return;
+            const previous = select.value;
+
+            // Только реальные снимки (исключаем mock)
+            const realDates = Object.entries(historySnapshotByDate)
+                .filter(([, snap]) => snap && !snap.isMock)
+                .map(([date]) => date)
+                .sort((a, b) => b.localeCompare(a)); // новые сверху
+
+            const seen = new Set();
+            const months = []; // [{ key: 'YYYY-MM', label, count }]
+            realDates.forEach(date => {
+                const ym = date.slice(0, 7);
+                if (!seen.has(ym)) {
+                    seen.add(ym);
+                    const [y, m] = ym.split('-');
+                    months.push({ key: ym, label: `${HISTORY_MONTHS_RU[parseInt(m, 10) - 1]} ${y}`, count: 0 });
+                }
+            });
+            months.forEach(m => {
+                m.count = realDates.filter(d => d.startsWith(m.key)).length;
+            });
+
+            select.innerHTML = '<option value="">— Выберите месяц —</option>';
+            months.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.key;
+                opt.textContent = `${m.label} (${m.count} ${m.count === 1 ? 'снимок' : (m.count >= 2 && m.count <= 4 ? 'снимка' : 'снимков')})`;
+                select.appendChild(opt);
+            });
+
+            if (previous && months.some(m => m.key === previous)) {
+                select.value = previous;
+            }
+
+            updateHistoryDownloadButtons();
+        }
+
+        function updateHistoryDownloadButtons() {
+            const dateSel = document.getElementById('historyDateSelect');
+            const monthSel = document.getElementById('historyMonthSelect');
+            const dayBtn = document.getElementById('downloadSingleSnapshotBtn');
+            const periodBtn = document.getElementById('downloadPeriodBtn');
+            const hint = document.getElementById('historyPeriodHint');
+
+            if (dayBtn) {
+                const date = dateSel ? dateSel.value : '';
+                const snap = date ? historySnapshotByDate[date] : null;
+                const ok = !!(date && snap && !snap.isMock);
+                dayBtn.disabled = !ok;
+                dayBtn.style.opacity = ok ? '1' : '0.6';
+                dayBtn.style.cursor = ok ? 'pointer' : 'not-allowed';
+                dayBtn.title = ok ? '' : 'Скачивание доступно только для реальных снимков';
+            }
+
+            if (periodBtn) {
+                const month = monthSel ? monthSel.value : '';
+                const ok = !!month;
+                periodBtn.disabled = !ok;
+                periodBtn.style.opacity = ok ? '1' : '0.6';
+                periodBtn.style.cursor = ok ? 'pointer' : 'not-allowed';
+            }
+
+            if (hint && monthSel) {
+                const month = monthSel.value;
+                if (!month) {
+                    hint.textContent = '';
+                } else {
+                    const datesInMonth = Object.entries(historySnapshotByDate)
+                        .filter(([d, s]) => s && !s.isMock && d.startsWith(month))
+                        .map(([d]) => d).sort();
+                    if (datesInMonth.length) {
+                        hint.textContent = `Будут включены ${datesInMonth.length} снимков: ${datesInMonth.map(d => d.split('-')[2]).join(', ')} число`;
+                    } else {
+                        hint.textContent = 'В этом месяце нет снимков.';
+                    }
+                }
+            }
+        }
+
+        // Внутренний номер плана → отображаемый (план 6 скрыт: 7→6, 8→7).
+        // Используем для имени файла.
+        function getPlanFileSuffix(planValue) {
+            if (!planValue || planValue === 'all') return 'все планы';
+            const internal = parseInt(planValue, 10);
+            if (!isFinite(internal)) return 'все планы';
+            const display = (PLAN_DISPLAY_NUMS && PLAN_DISPLAY_NUMS[internal]) || internal;
+            return `план ${display}`;
+        }
+
+        async function downloadHistoryPeriod() {
+            const monthSel = document.getElementById('historyMonthSelect');
+            const planSel = document.getElementById('historyPeriodPlanSelect');
+            const month = monthSel ? monthSel.value : '';
+            const planValue = planSel ? planSel.value : 'all';
+            if (!month) return;
+
+            // Диапазон: первый и последний день месяца (по дате)
+            const [yStr, mStr] = month.split('-');
+            const y = parseInt(yStr, 10);
+            const m = parseInt(mStr, 10);
+            const lastDay = new Date(y, m, 0).getDate();
+            const from = `${yStr}-${mStr}-01`;
+            const to = `${yStr}-${mStr}-${String(lastDay).padStart(2, '0')}`;
+            const label = `${HISTORY_MONTHS_RU[m - 1]} ${yStr}`;
+            const planSuffix = getPlanFileSuffix(planValue);
+
+            const btn = document.getElementById('downloadPeriodBtn');
+            const oldText = btn.textContent;
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+            btn.textContent = '⏳ Формирование...';
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                const r = await fetch('/api/plans/history/download-period', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ from, to, label, planNumber: planValue })
+                });
+
+                if (!r.ok) {
+                    let errMsg = 'Не удалось сформировать отчёт';
+                    try { const j = await r.json(); errMsg = j.error || errMsg; } catch (e) {}
+                    alert('Ошибка: ' + errMsg);
+                    return;
+                }
+
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `История планов — ${label} (${planSuffix}).docx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error('Ошибка скачивания периода:', e);
+                alert('Ошибка скачивания: ' + e.message);
+            } finally {
+                btn.textContent = oldText;
+                updateHistoryDownloadButtons();
+            }
+        }
+
+        async function downloadSelectedSnapshot() {
+            const date = document.getElementById('historyDateSelect').value;
+            const planSel = document.getElementById('historySinglePlanSelect');
+            const planValue = planSel ? planSel.value : 'all';
+            if (!date) return;
+            const snap = historySnapshotByDate[date];
+            if (!snap || snap.isMock) {
+                alert('Этот снимок недоступен для скачивания.');
+                return;
+            }
+
+            const btn = document.getElementById('downloadSingleSnapshotBtn');
+            const oldText = btn.textContent;
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+            btn.textContent = '⏳ Формирование...';
+
+            try {
+                const token = localStorage.getItem('accessToken');
+                // Используем тот же эндпоинт диапазона: from=to=date — получим один снимок
+                const [y, m, d] = date.split('-');
+                const label = `${d}.${m}.${y}`;
+                const planSuffix = getPlanFileSuffix(planValue);
+                const r = await fetch('/api/plans/history/download-period', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ from: date, to: date, label, planNumber: planValue })
+                });
+
+                if (!r.ok) {
+                    let errMsg = 'Не удалось сформировать отчёт';
+                    try { const j = await r.json(); errMsg = j.error || errMsg; } catch (e) {}
+                    alert('Ошибка: ' + errMsg);
+                    return;
+                }
+
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Снимок планов — ${label} (${planSuffix}).docx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error('Ошибка скачивания снимка:', e);
+                alert('Ошибка скачивания: ' + e.message);
+            } finally {
+                btn.textContent = oldText;
+                updateHistoryDownloadButtons();
+            }
         }
 
         function switchHistoryTab(n) {

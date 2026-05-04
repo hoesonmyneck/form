@@ -2211,6 +2211,45 @@ function scheduleFridaySnapshot() {
 
 scheduleFridaySnapshot();
 
+/**
+ * Авто-снимок (dev) в последний день месяца в 21:00.
+ */
+function scheduleMonthEndSnapshotDev() {
+    const MAX_TIMEOUT_MS = 2147483647;
+
+    function lastDayOf(year, monthIdx0) {
+        return new Date(year, monthIdx0 + 1, 0).getDate();
+    }
+    function getNextRun() {
+        const now = new Date();
+        const lastDay = lastDayOf(now.getFullYear(), now.getMonth());
+        let next = new Date(now.getFullYear(), now.getMonth(), lastDay, 21, 0, 0, 0);
+        if (now >= next) {
+            const nm = now.getMonth() + 1;
+            const y = now.getFullYear() + Math.floor(nm / 12);
+            const m = nm % 12;
+            next = new Date(y, m, lastDayOf(y, m), 21, 0, 0, 0);
+        }
+        return next;
+    }
+    function scheduleNext() {
+        const next = getNextRun();
+        const delay = next - new Date();
+        if (delay > MAX_TIMEOUT_MS) {
+            setTimeout(scheduleNext, MAX_TIMEOUT_MS);
+            return;
+        }
+        console.log(`⏰ Следующий авто-снимок (dev, конец месяца): ${next.toLocaleString('ru-RU')}`);
+        setTimeout(() => {
+            takeSnapshotDev('авто, последний день месяца');
+            scheduleNext();
+        }, Math.max(0, delay));
+    }
+    scheduleNext();
+}
+
+scheduleMonthEndSnapshotDev();
+
 function clearPlan7NotesFromSharedPlansDev(label) {
     try {
         const db = readDB();
@@ -2312,6 +2351,63 @@ app.get('/api/plans/history/:date', authenticateToken, (req, res) => {
     const snap = history.snapshots.find(s => s.date === req.params.date);
     if (!snap) return res.json({ success: false, found: false });
     res.json({ success: true, found: true, plans: snap.plans, notes: snap.notes });
+});
+
+// POST /api/plans/history/download-period
+app.post('/api/plans/history/download-period', authenticateToken, async (req, res) => {
+    const isAllowed = req.user.formType === 'plans' && (req.user.role === 'admin' || req.user.role === 'planner');
+    if (!isAllowed) return res.status(403).json({ error: 'Доступ запрещён' });
+
+    try {
+        const { from, to, label, planNumber } = req.body || {};
+        if (!from || !to) return res.status(400).json({ error: 'Не указан период (from/to)' });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+            return res.status(400).json({ error: 'Неверный формат даты' });
+        }
+
+        let normalizedPlan = 'all';
+        if (planNumber && planNumber !== 'all') {
+            const p = parseInt(planNumber, 10);
+            if (![1, 2, 3, 4, 5, 7, 8].includes(p)) {
+                return res.status(400).json({ error: 'Некорректный номер плана' });
+            }
+            normalizedPlan = p;
+        }
+
+        const history = readHistory();
+        const snapshots = (history.snapshots || [])
+            .filter(s => s.date >= from && s.date <= to)
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .map(s => ({ date: s.date, plans: s.plans || {}, notes: s.notes || {} }));
+
+        if (!snapshots.length) {
+            return res.status(404).json({ error: 'Снимков за выбранный период нет' });
+        }
+
+        const { buildHistoryPeriodDocx } = require('./plans-history-docx');
+        const buf = await buildHistoryPeriodDocx(snapshots, {
+            title: 'История планов работы',
+            periodLabel: label || `Период: ${from} — ${to}`,
+            planNumber: normalizedPlan
+        });
+
+        const PLAN_DISPLAY = { 7: 6, 8: 7 };
+        const planSuffix = normalizedPlan === 'all'
+            ? 'все планы'
+            : `план ${PLAN_DISPLAY[normalizedPlan] || normalizedPlan}`;
+        const safeLabel = (label || `${from}_${to}`).replace(/[\\/:*?"<>|]/g, '_');
+        const fileName = `История планов — ${safeLabel} (${planSuffix}).docx`;
+        const encoded = encodeURIComponent(fileName);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${encoded}"; filename*=UTF-8''${encoded}`);
+        res.send(buf);
+
+        console.log(`📥 Сводный отчёт истории (dev, ${from}..${to}, ${snapshots.length} снимков) — ${req.user.username}`);
+    } catch (e) {
+        console.error('❌ Ошибка генерации сводного отчёта (dev):', e);
+        res.status(500).json({ error: 'Ошибка при генерации отчёта: ' + e.message });
+    }
 });
 
 // POST /api/plans/snapshot

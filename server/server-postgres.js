@@ -42,6 +42,7 @@ pool.connect((err, client, release) => {
         `).then(() => {
             console.log('✅ Таблица plan_history готова');
             scheduleFridaySnapshot();
+            scheduleMonthEndSnapshot();
             scheduleMonthlyPlan7NotesCleanup();
         }).catch(e => console.error('❌ plan_history:', e.message));
 
@@ -2360,12 +2361,57 @@ function scheduleFridaySnapshot() {
         const next = getNextFriday9am();
         const delay = next - new Date();
         const hours = Math.round(delay / 36e5);
-        console.log(`⏰ Следующий авто-снимок планов: ${next.toLocaleString('ru-RU')} (через ~${hours} ч.)`);
+        console.log(`⏰ Следующий авто-снимок планов (пт): ${next.toLocaleString('ru-RU')} (через ~${hours} ч.)`);
         setTimeout(async () => {
             await takeAutoSnapshot('авто, пятница');
             scheduleNext();
         }, delay);
     }
+    scheduleNext();
+}
+
+/**
+ * Авто-снимок в последний день месяца в 21:00.
+ * Логика: вычисляем последний день текущего месяца. Если он уже прошёл сегодня
+ * после 21:00 — берём последний день следующего месяца.
+ */
+function scheduleMonthEndSnapshot() {
+    const MAX_TIMEOUT_MS = 2147483647; // ~24.8 дней — лимит setTimeout
+
+    function getLastDayOfMonth(year, monthIdx0) {
+        // 0-й день следующего месяца = последний день текущего
+        return new Date(year, monthIdx0 + 1, 0).getDate();
+    }
+
+    function getNextRun() {
+        const now = new Date();
+        const lastDay = getLastDayOfMonth(now.getFullYear(), now.getMonth());
+        let next = new Date(now.getFullYear(), now.getMonth(), lastDay, 21, 0, 0, 0);
+        if (now >= next) {
+            // Берём последний день следующего месяца
+            const nextMonth = now.getMonth() + 1;
+            const y = now.getFullYear() + Math.floor(nextMonth / 12);
+            const m = nextMonth % 12;
+            next = new Date(y, m, getLastDayOfMonth(y, m), 21, 0, 0, 0);
+        }
+        return next;
+    }
+
+    function scheduleNext() {
+        const next = getNextRun();
+        const delay = next - new Date();
+        if (delay > MAX_TIMEOUT_MS) {
+            // Слишком далеко — переждём максимум и пересчитаем.
+            setTimeout(scheduleNext, MAX_TIMEOUT_MS);
+            return;
+        }
+        console.log(`⏰ Следующий авто-снимок планов (конец месяца): ${next.toLocaleString('ru-RU')}`);
+        setTimeout(async () => {
+            await takeAutoSnapshot('авто, последний день месяца');
+            scheduleNext();
+        }, Math.max(0, delay));
+    }
+
     scheduleNext();
 }
 
@@ -2481,6 +2527,73 @@ app.get('/api/plans/history/:date', authenticateToken, async (req, res) => {
         const r = result.rows[0];
         res.json({ success: true, found: true, plans: r.plans_data, notes: r.notes_data });
     } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/plans/history/download-period — скачать DOCX-отчёт за период (диапазон дат)
+// Body: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD', label?: 'Апрель 2026' }
+app.post('/api/plans/history/download-period', authenticateToken, async (req, res) => {
+    const isAllowed = req.user.formType === 'plans' && (req.user.role === 'admin' || req.user.role === 'planner');
+    if (!isAllowed) return res.status(403).json({ error: 'Доступ запрещён' });
+
+    try {
+        const { from, to, label, planNumber } = req.body || {};
+        if (!from || !to) return res.status(400).json({ error: 'Не указан период (from/to)' });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+            return res.status(400).json({ error: 'Неверный формат даты (ожидается YYYY-MM-DD)' });
+        }
+
+        // Валидация плана: разрешены 1..5, 7, 8 либо "all"/пусто
+        let normalizedPlan = 'all';
+        if (planNumber && planNumber !== 'all') {
+            const p = parseInt(planNumber, 10);
+            if (![1, 2, 3, 4, 5, 7, 8].includes(p)) {
+                return res.status(400).json({ error: 'Некорректный номер плана' });
+            }
+            normalizedPlan = p;
+        }
+
+        const result = await pool.query(
+            `SELECT snapshot_date, plans_data, notes_data
+               FROM plan_history
+              WHERE snapshot_date BETWEEN $1 AND $2
+              ORDER BY snapshot_date ASC`,
+            [from, to]
+        );
+
+        if (!result.rows.length) {
+            return res.status(404).json({ error: 'Снимков за выбранный период нет' });
+        }
+
+        const snapshots = result.rows.map(r => {
+            const d = r.snapshot_date;
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            return { date: dateStr, plans: r.plans_data || {}, notes: r.notes_data || {} };
+        });
+
+        const { buildHistoryPeriodDocx } = require('./plans-history-docx');
+        const buf = await buildHistoryPeriodDocx(snapshots, {
+            title: 'История планов работы',
+            periodLabel: label || `Период: ${from} — ${to}`,
+            planNumber: normalizedPlan
+        });
+
+        const PLAN_DISPLAY = { 7: 6, 8: 7 };
+        const planSuffix = normalizedPlan === 'all'
+            ? 'все планы'
+            : `план ${PLAN_DISPLAY[normalizedPlan] || normalizedPlan}`;
+        const safeLabel = (label || `${from}_${to}`).replace(/[\\/:*?"<>|]/g, '_');
+        const fileName = `История планов — ${safeLabel} (${planSuffix}).docx`;
+        const encoded = encodeURIComponent(fileName);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${encoded}"; filename*=UTF-8''${encoded}`);
+        res.send(buf);
+
+        console.log(`📥 Сводный отчёт истории планов (${from}..${to}, ${snapshots.length} снимков) — ${req.user.username}`);
+    } catch (e) {
+        console.error('❌ Ошибка генерации сводного отчёта:', e);
+        res.status(500).json({ error: 'Ошибка при генерации отчёта: ' + e.message });
+    }
 });
 
 // POST /api/plans/snapshot — ручной снимок
