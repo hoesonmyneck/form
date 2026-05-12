@@ -834,6 +834,7 @@ async function loadPlansFromServer() {
         // Подставляем фактические данные из Oracle (если есть)
         applyOraclePlan2();
         applyOraclePlan4();
+        applyOraclePlan7();
         if (ENABLE_ORACLE_PLAN5_AUTOFILL) {
             applyOraclePlan5();
         } else {
@@ -1213,6 +1214,51 @@ async function applyOraclePlan4() {
 
     } catch (e) {
         console.warn('Oracle plan4 недоступен, пропускаем автозаполнение:', e.message);
+    }
+}
+
+async function applyOraclePlan7() {
+    const token = localStorage.getItem('accessToken');
+    try {
+        const response = await fetch('/api/plans/oracle-plan7', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (!result.success || !result.found || !result.data) return;
+
+        const oracleData = result.data;
+        let filled = 0;
+
+        REGIONS.forEach((regionName, idx) => {
+            const val = oracleData[regionName];
+            if (val === undefined || val === null) return;
+
+            const setField = (colIdx, rawVal) => {
+                const input = document.querySelector(`input[data-plan="7"][data-row="${idx}"][data-col="${colIdx}"]`);
+                if (!input) return;
+                const num = parseFloat(rawVal) || 0;
+                input.value = num % 1 === 0 ? String(num) : num.toFixed(2).replace(/\.?0+$/, '');
+                input.readOnly = true;
+                input.style.background = '#e8f5e9';
+                input.style.cursor = 'not-allowed';
+                input.title = `Авто из Oracle: ${input.value}`;
+            };
+
+            setField(0, val.kol_del);
+            setField(1, val.cnt_plan);
+            setField(2, val.proc_plan);
+            setField(3, val.proc_fact);
+            calculateCoefficient(7, idx);
+            filled++;
+        });
+
+        calculateTotals(7);
+
+        console.log(`✅ Oracle plan7: подставлено ${filled} регионов (обновлено ${result.fetchedAt ? new Date(result.fetchedAt).toLocaleString('ru-RU') : '—'})`);
+
+    } catch (e) {
+        console.warn('Oracle plan7 недоступен, пропускаем автозаполнение:', e.message);
     }
 }
 
