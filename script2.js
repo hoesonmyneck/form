@@ -734,12 +734,18 @@ async function saveAllPlans() {
 
     plans[planId] = collectTableData(planId);
 
-    // Передаем только notes текущего плана
+    // Передаём только notes текущего плана.
+    // Региональным пользователям дополнительно отрезаем заметки чужих регионов,
+    // чтобы случайно не отправить устаревший снимок (сервер их всё равно проигнорирует,
+    // но так нагрузка меньше и логика прозрачнее).
     const notePrefix = `${planId}_`;
+    const regionPrefix = (typeof userRegionIndex === 'number')
+        ? `${planId}_${userRegionIndex}_`
+        : null;
     Object.keys(notes).forEach((key) => {
-        if (key.startsWith(notePrefix)) {
-            notesToSave[key] = notes[key];
-        }
+        if (!key.startsWith(notePrefix)) return;
+        if (regionPrefix && !key.startsWith(regionPrefix)) return;
+        notesToSave[key] = notes[key];
     });
 
     // Собираем дату только текущего плана

@@ -316,7 +316,10 @@ function Run-OracleSyncPlan7 {
 
     $rowJsonParts = $oracleRows | ForEach-Object {
         $escaped = $_.regName.Replace('"', '\"')
-        "{`"regName`":`"$escaped`",`"cntNaz`":$($_.cntNaz),`"cntPlan`":$($_.cntPlan),`"procPlan`":$($_.procPlan),`"procFact`":$($_.procFact)}"
+        # Значения берём в кавычки: Oracle TO_CHAR для чисел <1 отдаёт ".07" без
+        # ведущего нуля, что ломает JSON при вставке без кавычек. Сервер всё равно
+        # делает parseFloat(), поэтому строковые значения он корректно разберёт.
+        "{`"regName`":`"$escaped`",`"cntNaz`":`"$($_.cntNaz)`",`"cntPlan`":`"$($_.cntPlan)`",`"procPlan`":`"$($_.procPlan)`",`"procFact`":`"$($_.procFact)`"}"
     }
     $rowsJson  = "[" + ($rowJsonParts -join ",") + "]"
     $fetchedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")

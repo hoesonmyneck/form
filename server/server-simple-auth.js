@@ -1702,12 +1702,17 @@ app.post('/api/plans/save', authenticateToken, (req, res) => {
         // Если указан notesPlanScope, синхронизируем notes только для этого плана:
         // ключи `${scope}_*` полностью заменяются присланным набором,
         // остальные планы не трогаем.
-        const applyNotesScoped = (currentNotes, incomingNotes, scopePlanId) => {
+        // scopeRowIndex (опционально) — ограничивает merge одной строкой:
+        // префикс становится `${planId}_${rowIdx}_`, чужие регионы не трогаются.
+        const applyNotesScoped = (currentNotes, incomingNotes, scopePlanId, scopeRowIndex) => {
             const next = { ...(currentNotes || {}) };
             const incoming = incomingNotes || {};
 
             if (scopePlanId) {
-                const scopePrefix = `${scopePlanId}_`;
+                const scopePrefix = scopeRowIndex !== undefined && scopeRowIndex !== null
+                    ? `${scopePlanId}_${scopeRowIndex}_`
+                    : `${scopePlanId}_`;
+
                 Object.keys(next).forEach((key) => {
                     if (key.startsWith(scopePrefix)) {
                         delete next[key];
@@ -1761,8 +1766,9 @@ app.post('/api/plans/save', authenticateToken, (req, res) => {
                     sharedPlans[planId][regionIndex] = plans[planId][regionIndex];
                 }
             }
-            sharedNotes = applyNotesScoped(sharedNotes, notes, notesPlanScope);
-            console.log(`📝 Обновлена строка [${regionIndex}] от ${req.user.username}`);
+            // Заметки: только ключи СВОЕЙ строки (plan{N}_{regionIndex}_*).
+            sharedNotes = applyNotesScoped(sharedNotes, notes, notesPlanScope, regionIndex);
+            console.log(`📝 Обновлена строка [${regionIndex}] от ${req.user.username}${notesPlanScope ? ` (notes scope: ${notesPlanScope}_${regionIndex}_*)` : ''}`);
         } else {
             // Администратор / planner: перезаписывает выбранные планы
             for (let i = 1; i <= 8; i++) {

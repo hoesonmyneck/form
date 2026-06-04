@@ -1650,12 +1650,19 @@ app.post('/api/plans/save', authenticateToken, async (req, res) => {
         // Если фронт явно указал, к какому плану относится notes-пакет,
         // мы синхронизируем именно эту группу: ключи notes_plan${N}_*
         // полностью заменяются присланным набором (без затрагивания других планов).
-        const applyNotesScoped = (currentNotes, incomingNotes, scopePlanId) => {
+        // scopePlanId — ограничивает merge одним планом (например 'plan1')
+        // scopeRowIndex — дополнительно ограничивает одной строкой (для региональных
+        //                 пользователей, чтобы не затрагивать чужие регионы).
+        //                 Ключ заметки: plan{N}_{rowIdx}_{colIdx}
+        const applyNotesScoped = (currentNotes, incomingNotes, scopePlanId, scopeRowIndex) => {
             const next = { ...(currentNotes || {}) };
             const incoming = incomingNotes || {};
 
             if (scopePlanId) {
-                const scopePrefix = `${scopePlanId}_`;
+                const scopePrefix = scopeRowIndex !== undefined && scopeRowIndex !== null
+                    ? `${scopePlanId}_${scopeRowIndex}_`
+                    : `${scopePlanId}_`;
+
                 Object.keys(next).forEach((key) => {
                     if (key.startsWith(scopePrefix)) {
                         delete next[key];
@@ -1726,8 +1733,10 @@ app.post('/api/plans/save', authenticateToken, async (req, res) => {
                     sharedPlans[planId][regionIndex] = plans[planId][regionIndex];
                 }
             }
-            sharedNotes = applyNotesScoped(sharedNotes, notes, notesPlanScope);
-            console.log(`📝 Обновлена строка [${regionIndex}] от ${req.user.username}`);
+            // Заметки: обновляем только ключи СВОЕЙ строки (plan{N}_{regionIndex}_*),
+            // чужие регионы остаются нетронутыми — устраняет гонку конкурентного сохранения.
+            sharedNotes = applyNotesScoped(sharedNotes, notes, notesPlanScope, regionIndex);
+            console.log(`📝 Обновлена строка [${regionIndex}] от ${req.user.username}${notesPlanScope ? ` (notes scope: ${notesPlanScope}_${regionIndex}_*)` : ''}`);
         } else {
             // Администратор / planner: перезаписывает выбранные планы
             for (let i = 1; i <= 8; i++) {
