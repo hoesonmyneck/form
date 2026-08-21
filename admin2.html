@@ -43,6 +43,7 @@
                         <option value="plan_only">Только плановые показатели (все регионы)</option>
                         <option value="viewer">Только просмотр (без редактирования)</option>
                         <option value="viewer_p7">Просмотр + редактирование плана 7</option>
+                        <option value="viewer_p78">Просмотр + редактирование планов 7 и 8 (только факт)</option>
                     </select>
                 </div>
                 <div id="uRegionGroup" style="display:none;">
@@ -239,6 +240,7 @@
             <!-- ПЛАН 6 ВРЕМЕННО СКРЫТ: <button class="tab-btn" data-tab="plan6" onclick="switchTab(6)">План № 6</button> -->
             <button class="tab-btn" data-tab="plan7" onclick="switchTab(7)">План № 6</button>
             <button class="tab-btn" data-tab="plan8" onclick="switchTab(8)">План № 7</button>
+            <button class="tab-btn" data-tab="plan9" onclick="switchTab(9)">План № 8</button>
         </nav>
 
         <div id="plans-container"></div>
@@ -264,11 +266,12 @@
             5: 'Рассмотрение не менее 53,5% дел первичного освидетельствования ОМК МСЭ',
             // 6: 'Направление поступивших формуляров на подтверждение', // ПЛАН 6 СКРЫТ
             7: 'Проведение проверки пенсионных выплат по возрасту',
-            8: 'Обеспечение наполнения интернет-ресурса департамента'
+            8: 'Обеспечение наполнения интернет-ресурса департамента',
+            9: 'Мониторинг заполнения вакантных должностей в отделах медико-социальной экспертизы'
         };
 
-        // Маппинг: внутренний номер плана → отображаемый (план 6 скрыт: 7→6, 8→7)
-        const PLAN_DISPLAY_NUMS = { 1:1, 2:2, 3:3, 4:4, 5:5, 7:6, 8:7 };
+        // Маппинг: внутренний номер плана → отображаемый (план 6 скрыт: 7→6, 8→7, 9→8)
+        const PLAN_DISPLAY_NUMS = { 1:1, 2:2, 3:3, 4:4, 5:5, 7:6, 8:7, 9:8 };
 
         let currentTab = 1;
         let allPlans = null;
@@ -342,7 +345,8 @@
             user:       'Только фактические',
             plan_only:  'Только плановые',
             viewer:     'Только просмотр',
-            viewer_p7:  'Просмотр + план 7'
+            viewer_p7:  'Просмотр + план 7',
+            viewer_p78: 'Просмотр + план 7,8 (факт)'
         };
 
         // =====================================================================
@@ -357,7 +361,7 @@
         const ENABLE_HISTORY_MOCK_FALLBACK = false;
         const MOCK_HISTORY_MONTHS = 2;
         const MOCK_HISTORY_MONTH_KEYS = ['03', '04']; // март и апрель для теста
-        const HISTORY_PLANS_FOR_STATS = [1, 2, 3, 4, 5, 7, 8];
+        const HISTORY_PLANS_FOR_STATS = [1, 2, 3, 4, 5, 7, 8, 9];
         let historyAnalyticsView = 'regions';
         const historyTrendView = { mode: 'months', monthKey: '' };
         const historyHeatmapFilters = { planNumber: 1 };
@@ -1776,6 +1780,7 @@
                 html += '<th>Плановый показатель</th><th>Фактический показатель</th>';
             }
             html += `<th id="coeff-th-hist" style="cursor:pointer; user-select:none;" title="Нажмите для сортировки" onclick="sortAdminPlan('hist')">Коэф. исполнения</th>`;
+            if (planNumber === 8) html += '<th>Оценка</th>';
             html += '</tr></thead><tbody id="history-plan-tbody">';
             data.forEach((row, rowIndex) => {
                 const isTotal = row[0] === '-' || String(row[1]).trim() === 'Всего';
@@ -1873,7 +1878,7 @@
                 const regionLabel = (u.regionIndex !== null && u.regionIndex !== undefined && u.regionIndex >= 0)
                     ? REGIONS[u.regionIndex] || '—' : '—';
                 const accessLabel = ACCESS_LABELS[u.role] || u.role;
-                const accessColor = u.role === 'viewer' ? '#9ca3af' : u.role === 'viewer_p7' ? '#d97706' : u.role === 'admin' ? '#7c3aed' : u.role === 'planner' ? '#1a56db' : u.role === 'plan_only' ? '#0891b2' : '#059669';
+                const accessColor = u.role === 'viewer' ? '#9ca3af' : (u.role === 'viewer_p7' || u.role === 'viewer_p78') ? '#d97706' : u.role === 'admin' ? '#7c3aed' : u.role === 'planner' ? '#1a56db' : u.role === 'plan_only' ? '#0891b2' : '#059669';
                 return `<tr>
                     <td style="font-weight:600;">${u.username}</td>
                     <td style="color:#374151;">${u.fullName || '—'}</td>
@@ -2055,7 +2060,7 @@
             tbody.innerHTML = '';
             
             // Собираем данные по всем планам для выбранного региона (план 6 скрыт)
-            for (let planNum = 1; planNum <= 8; planNum++) {
+            for (let planNum = 1; planNum <= 9; planNum++) {
                 if (planNum === 6) continue; // ПЛАН 6 СКРЫТ
                 const planId = `plan${planNum}`;
                 const planData = allPlans[planId];
@@ -2115,6 +2120,9 @@
                 html += '<th>Фактический показатель</th>';
             }
             html += '<th id="coeff-th-main" style="cursor:pointer; user-select:none;" title="Нажмите для сортировки" onclick="sortAdminPlan(\'main\')">Коэффициент исполнения</th>';
+            // План 8 (отображ. № 7) — доп. столбец «Оценка»
+            const hasOcenka = (planNumber === 8);
+            if (hasOcenka) html += '<th>Оценка</th>';
             html += '</tr></thead><tbody id="admin-plan-tbody">';
 
             data.forEach((row, rowIndex) => {

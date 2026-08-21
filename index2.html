@@ -31,6 +31,42 @@
             display: inline-block;
             width: calc(100% - 3rem);
         }
+        /* Столбец «Оценка» (план № 7) */
+        .ocenka-cell input[type="hidden"] { display: none; }
+        .ocenka-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            align-items: stretch;
+        }
+        .ocenka-opt {
+            display: block;
+            padding: 0.3rem 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            text-align: center;
+            cursor: pointer;
+            background: #f9fafb;
+            color: #374151;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .ocenka-opt:hover { background: #eef2ff; border-color: #a5b4fc; }
+        .ocenka-opt.selected { font-weight: 700; border-width: 2px; }
+        .ocenka-opt.sel-good { background: #dcfce7; color: #14532d; border-color: #22c55e; }
+        .ocenka-opt.sel-mid  { background: #fef9c3; color: #713f12; border-color: #eab308; }
+        .ocenka-opt.sel-bad  { background: #fee2e2; color: #7f1d1d; border-color: #ef4444; }
+        /* Недоступно для не-комитета: клики выключены, вид приглушён */
+        .ocenka-cell.ocenka-locked .ocenka-opt {
+            cursor: not-allowed;
+            opacity: 0.55;
+            pointer-events: none;
+        }
+        .ocenka-cell.ocenka-locked .ocenka-opt.selected {
+            opacity: 1;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -61,6 +97,7 @@
         <!-- <button class="tab-btn" data-tab="plan6">План № 6</button> -->
         <button class="tab-btn" data-tab="plan7">План № 6</button>
         <button class="tab-btn" data-tab="plan8">План № 7</button>
+        <button class="tab-btn" data-tab="plan9">План № 8</button>
     </nav>
 
     <main class="container">
@@ -249,9 +286,32 @@
                             <th>Плановый показатель (кол-во публикаций не менее)</th>
                             <th>Фактический показатель (кол-во публикаций)</th>
                             <th>Коэффициент исполнения (%)</th>
+                            <th style="width: 220px;">Оценка</th>
                         </tr>
                     </thead>
                     <tbody id="plan8-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="plan9" class="form-section">
+            <div class="form-header">
+                <h2 class="form-title">План № 8</h2>
+                <h3 class="form-subtitle">Мониторинг заполнения вакантных должностей в отделах медико-социальной экспертизы</h3>
+                <p><strong>Дата:</strong> <input type="text" id="plan9-date" value="" style="border:1px solid #d1d5db; border-radius:6px; padding:4px 10px; font-size:0.95rem; width:260px;"></p>
+            </div>
+            <div class="table-container">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">№</th>
+                            <th style="width: 300px;">Территориальные департаменты КРиКСЗН</th>
+                            <th>Плановый показатель (абс.число)</th>
+                            <th>Фактический показатель (абс.число)</th>
+                            <th>Коэффициент исполнения (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plan9-tbody"></tbody>
                 </table>
             </div>
         </section>

@@ -1750,7 +1750,7 @@ app.post('/api/plans/save', authenticateToken, (req, res) => {
         let sharedNotes = (sharedDoc && sharedDoc.notes) ? { ...sharedDoc.notes } : {};
 
         // Инициализируем пустую структуру если нужно
-        for (let i = 1; i <= 8; i++) {
+        for (let i = 1; i <= 9; i++) {
             const planId = `plan${i}`;
             if (!sharedPlans[planId]) {
                 sharedPlans[planId] = PLAN_REGIONS.map((r, idx) => [idx + 1, r, '', '', '']);
@@ -1760,7 +1760,7 @@ app.post('/api/plans/save', authenticateToken, (req, res) => {
 
         if (regionIndex !== undefined) {
             // Региональный пользователь: обновляем только свою строку
-            for (let i = 1; i <= 8; i++) {
+            for (let i = 1; i <= 9; i++) {
                 const planId = `plan${i}`;
                 if (plans[planId] && plans[planId][regionIndex]) {
                     sharedPlans[planId][regionIndex] = plans[planId][regionIndex];
@@ -1771,7 +1771,7 @@ app.post('/api/plans/save', authenticateToken, (req, res) => {
             console.log(`📝 Обновлена строка [${regionIndex}] от ${req.user.username}${notesPlanScope ? ` (notes scope: ${notesPlanScope}_${regionIndex}_*)` : ''}`);
         } else {
             // Администратор / planner: перезаписывает выбранные планы
-            for (let i = 1; i <= 8; i++) {
+            for (let i = 1; i <= 9; i++) {
                 const planId = `plan${i}`;
                 if (plans[planId]) sharedPlans[planId] = plans[planId];
             }
@@ -1974,6 +1974,85 @@ function buildPlan7TableXml(planData) {
     </w:tbl>`;
 }
 
+// План 8 (отображается как № 7): таблица с доп. столбцом «Оценка».
+// Структура строки: [num, region, planned, actual, coeff, ocenka]
+function buildPlan8TableXml(planData) {
+    const esc = s => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    const colW = [400, 2900, 1900, 1900, 1500, 1700];
+    const totalW = colW.reduce((a, b) => a + b, 0);
+
+    const tcProp = (w, fill) => {
+        const shade = fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : '';
+        return `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${shade}
+          <w:tcBorders>
+            <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          </w:tcBorders>
+        </w:tcPr>`;
+    };
+
+    const cell = (text, w, { bold = false, center = true, fill = null } = {}) => {
+        const jc = center ? '<w:jc w:val="center"/>' : '<w:jc w:val="left"/>';
+        const rpr = bold ? '<w:rPr><w:b/><w:bCs/></w:rPr>' : '<w:rPr/>';
+        return `<w:tc>${tcProp(w, fill)}
+          <w:p><w:pPr>${jc}<w:spacing w:before="60" w:after="60"/>
+          </w:pPr><w:r>${rpr}<w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p>
+        </w:tc>`;
+    };
+
+    const headers = [
+        '№',
+        'Территориальные департаменты КРиКСЗН',
+        'Плановый показатель (кол-во публикаций не менее)',
+        'Фактический показатель (кол-во публикаций)',
+        'Коэффициент исполнения (%)',
+        'Оценка'
+    ];
+
+    const headerRow = '<w:tr>' + headers.map((h, i) =>
+        cell(h, colW[i], { bold: true, center: true })
+    ).join('') + '</w:tr>';
+
+    let dataRows = '';
+    planData.forEach((row, idx) => {
+        const isTotal = row[0] === '-' || String(row[1] || '').trim() === 'Всего';
+        const num = isTotal ? '-' : String(idx + 1);
+        dataRows += '<w:tr>'
+            + cell(num,     colW[0], { bold: isTotal, center: true })
+            + cell(row[1],  colW[1], { bold: isTotal, center: false })
+            + cell(row[2],  colW[2], { center: true })
+            + cell(row[3],  colW[3], { center: true })
+            + cell(row[4],  colW[4], { center: true })
+            + cell(isTotal ? '' : row[5], colW[5], { center: true })
+            + '</w:tr>';
+    });
+
+    const gridCols = colW.map(w => `<w:gridCol w:w="${w}"/>`).join('');
+
+    return `<w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="${totalW}" w:type="dxa"/>
+        <w:tblBorders>
+          <w:top    w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:left   w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:right  w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+        </w:tblBorders>
+        <w:tblLook w:val="04A0"/>
+      </w:tblPr>
+      <w:tblGrid>${gridCols}</w:tblGrid>
+      ${headerRow}
+      ${dataRows}
+    </w:tbl>`;
+}
+
 /**
  * POST /api/plans/download
  * Генерация и скачивание DOCX документа с заполненными данными
@@ -2014,9 +2093,10 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
             5: 'Рассмотрение не менее 53,5% дел первичного освидетельствования ОМК МСЭ при оказании государственной услуги «Установление инвалидности и/или степени утраты трудоспособности, и/или определению мер социальной защиты',
             6: 'Направление поступивших формуляров (по Соглашению государств-членов ЕАЭС) на подтверждение в компетентные органы',
             7: 'Проведение проверки пенсионных выплат по возрасту с признаками предоставления заявителем недостоверных сведений (отчетная группа №360 в АИС «Е-макет»)',
-            8: 'Обеспечение наполнения интернет-ресурса территориального департамента (по доступности, по пенсионному обеспечению, ТСР)'
+            8: 'Обеспечение наполнения интернет-ресурса территориального департамента (по доступности, по пенсионному обеспечению, ТСР)',
+            9: 'Мониторинг заполнения вакантных должностей в отделах медико-социальной экспертизы'
         };
-        
+
         const planFileNames = {
             1: 'План № 1',
             2: 'План № 2',
@@ -2025,7 +2105,8 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
             5: 'План № 5',
             6: 'План № 6',
             7: 'План № 7',
-            8: 'План № 8'
+            8: 'План № 8',
+            9: 'План № 9'
         };
 
         const planSPLabels = {
@@ -2036,7 +2117,8 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
             5: 'Курирующее отраслевое СП  - ДМСЭ',
             6: 'Курирующее отраслевое СП  - ДМСЭ',
             7: 'Курирующее отраслевое СП  - ДСОСС',
-            8: 'Курирующее отраслевое СП  - Пресс-служба'
+            8: 'Курирующее отраслевое СП  - Пресс-служба',
+            9: 'Курирующее отраслевое СП  - ДМСЭ'
         };
         
         // Убираем «» перед датой (все варианты: слитно, с пробелом, разнесённые по тегам)
@@ -2067,6 +2149,15 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
         if (planNumber === 7) {
             // Для план 7 — заменяем всю таблицу целиком с правильными заголовками
             const newTableXml = buildPlan7TableXml(planData);
+            const tblMatch = docXml.match(/<w:tbl[\s\S]*?<\/w:tbl>/);
+            if (tblMatch) {
+                docXml = docXml.replace(tblMatch[0], newTableXml);
+            }
+            docXml = docXml.replace(/\{#rows\}[\s\S]*?\{\/rows\}/g, '');
+            docXml = docXml.replace(/\{totalPlanned\}|\{totalActual\}|\{totalCoefficient\}/g, '');
+        } else if (planNumber === 8) {
+            // Для план 8 (отображ. № 7) — таблица с доп. столбцом «Оценка»
+            const newTableXml = buildPlan8TableXml(planData);
             const tblMatch = docXml.match(/<w:tbl[\s\S]*?<\/w:tbl>/);
             if (tblMatch) {
                 docXml = docXml.replace(tblMatch[0], newTableXml);
@@ -2374,7 +2465,7 @@ app.post('/api/plans/history/download-period', authenticateToken, async (req, re
         let normalizedPlan = 'all';
         if (planNumber && planNumber !== 'all') {
             const p = parseInt(planNumber, 10);
-            if (![1, 2, 3, 4, 5, 7, 8].includes(p)) {
+            if (![1, 2, 3, 4, 5, 7, 8, 9].includes(p)) {
                 return res.status(400).json({ error: 'Некорректный номер плана' });
             }
             normalizedPlan = p;

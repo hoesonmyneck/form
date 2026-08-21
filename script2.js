@@ -88,7 +88,7 @@ function checkAuth() {
 
             // Блокируем поля дат для не-админов
             if (data.user.role !== 'admin') {
-                for (let p = 1; p <= 8; p++) {
+                for (let p = 1; p <= 9; p++) {
                     const el = document.getElementById(`plan${p}-date`);
                     if (el) {
                         el.disabled = true;
@@ -121,7 +121,7 @@ const notes = {};
 let notesLoadedFromServer = false;
 
 // Планы, для которых строка «Всего» рассчитывается автоматически
-const AUTO_TOTAL_PLANS = [1, 2, 3, 4, 5, 7, 8];
+const AUTO_TOTAL_PLANS = [1, 2, 3, 4, 5, 7, 8, 9];
 
 // Текущая дата по Астане (UTC+5) в формате "6 марта 2026"
 function getCurrentDateAstana() {
@@ -134,23 +134,82 @@ function getCurrentDateAstana() {
 // Устанавливаем текущую дату для всех планов (всегда обновляем)
 function setDefaultDates() {
     const today = getCurrentDateAstana();
-    for (let p = 1; p <= 8; p++) {
+    for (let p = 1; p <= 9; p++) {
         const el = document.getElementById(`plan${p}-date`);
         if (el) el.value = today;
     }
 }
 
+// =====================================================================
+// План № 7 (внутренний plan8): столбец «Оценка» (Плохо/Удовлетв./Хорошо)
+// Кликабелен и редактируется только комитетом (как плановые показатели).
+// Значение хранится в скрытом input data-col="3" и попадает в сохранение
+// как дополнительная колонка строки.
+// =====================================================================
+const OCENKA_OPTIONS = ['Плохо', 'Удовлетворительно', 'Хорошо'];
+let canEditOcenka = false; // выставляется в applyColumnRestrictions по роли
+
+function buildOcenkaCell(planNum, rowIdx, isTotalRow) {
+    const hidden = `<input type="hidden" data-plan="${planNum}" data-row="${rowIdx}" data-col="3" value="">`;
+    if (isTotalRow) {
+        return `<td class="ocenka-cell">${hidden}</td>`;
+    }
+    const opts = OCENKA_OPTIONS.map(v =>
+        `<span class="ocenka-opt" data-val="${v}" onclick="setOcenka(${planNum},${rowIdx},'${v}')">${v}</span>`
+    ).join('');
+    return `<td class="ocenka-cell">${hidden}<div class="ocenka-options">${opts}</div></td>`;
+}
+
+// Клик по слову: выбрать оценку (повторный клик снимает выбор). Только комитет.
+function setOcenka(planNum, rowIdx, value) {
+    if (!canEditOcenka) return;
+    const hidden = document.querySelector(`input[type="hidden"][data-plan="${planNum}"][data-row="${rowIdx}"][data-col="3"]`);
+    if (!hidden) return;
+    hidden.value = (hidden.value === value) ? '' : value;
+    refreshOcenkaCell(planNum, rowIdx);
+}
+
+// Подсветка выбранного слова в конкретной ячейке
+function refreshOcenkaCell(planNum, rowIdx) {
+    const hidden = document.querySelector(`input[type="hidden"][data-plan="${planNum}"][data-row="${rowIdx}"][data-col="3"]`);
+    if (!hidden) return;
+    const cell = hidden.closest('td');
+    if (!cell) return;
+    const selected = hidden.value;
+    cell.querySelectorAll('.ocenka-opt').forEach(span => {
+        const on = span.dataset.val === selected;
+        span.classList.toggle('selected', on);
+        span.classList.remove('sel-good', 'sel-mid', 'sel-bad');
+        if (on) {
+            if (selected === 'Хорошо') span.classList.add('sel-good');
+            else if (selected === 'Удовлетворительно') span.classList.add('sel-mid');
+            else if (selected === 'Плохо') span.classList.add('sel-bad');
+        }
+    });
+}
+
+// Обновляет все ячейки «Оценка» плана + помечает блокировку для не-комитета
+function refreshAllOcenka(planNum) {
+    document.querySelectorAll(`input[type="hidden"][data-plan="${planNum}"][data-col="3"]`).forEach(hidden => {
+        refreshOcenkaCell(planNum, parseInt(hidden.dataset.row, 10));
+    });
+    document.querySelectorAll(`#plan${planNum}-tbody .ocenka-cell`).forEach(cell => {
+        cell.classList.toggle('ocenka-locked', !canEditOcenka);
+    });
+}
+
 // Инициализация таблиц
 function initializeTables() {
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 9; i++) {
         const tbody = document.getElementById(`plan${i}-tbody`);
         if (!tbody) continue;
-        
+
         let html = '';
         const num = 'type="number" step="0.01" min="0" placeholder="0"';
         const txt = 'placeholder="0/0"';
         const isText = (i === 8);
         const isP7   = (i === 7); // план 7 — особая структура с 4 вводимыми полями
+        const hasOcenka = (i === 8); // план 8 (отображ. № 7) — доп. столбец «Оценка»
 
         function makeRow(rowIdx, regionCell) {
             if (isP7) {
@@ -170,12 +229,14 @@ function initializeTables() {
             const roCoefficient = 'readonly style="background:#f3f4f6;cursor:not-allowed;"';
             const oi = isText ? `oninput="calculateTotals(${i})"` : `oninput="calculateCoefficient(${i},${typeof rowIdx === 'number' ? rowIdx : 20})"`;
             const rr = typeof rowIdx === 'number' ? rowIdx : 20;
+            const isTotalRow = typeof rowIdx !== 'number';
+            const ocenkaCell = hasOcenka ? buildOcenkaCell(i, rr, isTotalRow) : '';
             return `
                 <td style="text-align:center; font-weight:600;">${typeof rowIdx === 'number' ? rowIdx + 1 : '-'}</td>
                 <td>${regionCell}</td>
                 <td><input ${ia} data-plan="${i}" data-row="${rr}" data-col="0" ${oi}><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},0)" title="Добавить примечание">📝</button></td>
                 <td><input ${ia} data-plan="${i}" data-row="${rr}" data-col="1" ${oi}><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},1)" title="Добавить примечание">📝</button></td>
-                <td><input ${ia} data-plan="${i}" data-row="${rr}" data-col="2" ${roCoefficient}><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},2)" title="Добавить примечание">📝</button></td>`;
+                <td><input ${ia} data-plan="${i}" data-row="${rr}" data-col="2" ${roCoefficient}><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},2)" title="Добавить примечание">📝</button></td>${ocenkaCell}`;
         }
 
         REGIONS.forEach((region, index) => {
@@ -205,7 +266,7 @@ function initializeTables() {
 function applyRegionalFilter() {
     if (userRegionIndex === null) return;
 
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 9; i++) {
         const tbody = document.getElementById(`plan${i}-tbody`);
         if (!tbody) continue;
         const rows = tbody.querySelectorAll('tr');
@@ -224,11 +285,17 @@ function applyRegionalFilter() {
 // viewer     → ничего не редактирует
 // viewer_p7  → viewer для всех планов, кроме plan8 (отображ. план 7) — полный доступ
 function applyColumnRestrictions() {
+    // «Оценку» (план 8 / отображ. № 7) редактирует только комитет:
+    // admin, planner, plan_only, а также viewer_p7 (полный доступ к плану 8).
+    canEditOcenka = userIsAdmin || userIsPlanner
+        || currentUserRole === 'plan_only' || currentUserRole === 'viewer_p7';
+    refreshAllOcenka(8);
+
     if (userIsAdmin || userIsPlanner) return;
 
     const role = currentUserRole;
 
-    for (let planNum = 1; planNum <= 8; planNum++) {
+    for (let planNum = 1; planNum <= 9; planNum++) {
         const tbody = document.getElementById(`plan${planNum}-tbody`);
         if (!tbody) continue;
 
@@ -238,6 +305,17 @@ function applyColumnRestrictions() {
         tbody.querySelectorAll('tr').forEach((row) => {
             const inputs = row.querySelectorAll('input');
             const isP7 = (planNum === 7);
+
+            if (role === 'viewer_p78') {
+                // Просмотр всех планов; на планах 7 и 8 (внутр. plan8 и plan9)
+                // разрешён ввод ТОЛЬКО «фактического» показателя (data-col="1").
+                const canEditFact = (planNum === 8 || planNum === 9);
+                inputs.forEach((inp, k) => {
+                    if (canEditFact && k === 1) return; // «факт» оставляем редактируемым
+                    lockInput(inp);
+                });
+                return;
+            }
 
             if (role === 'viewer' || role === 'viewer_p7') {
                 const editCount = isP7 ? 4 : 2;
@@ -333,7 +411,7 @@ function applyCoefficientCellColor(input) {
 }
 
 function refreshCoefficientColorsAllPlans() {
-    for (let planNum = 1; planNum <= 8; planNum++) {
+    for (let planNum = 1; planNum <= 9; planNum++) {
         const tbody = document.getElementById(`plan${planNum}-tbody`);
         if (!tbody) continue;
         const coeffCol = planNum === 7 ? 4 : 2;
@@ -551,8 +629,8 @@ function calculateTotals(planNum) {
         if (totalInputs[4]) totalInputs[4].value = formatCoeff(coeff);
         if (totalInputs[4]) applyCoefficientCellColor(totalInputs[4]);
 
-    } else if (planNum === 3) {
-        // План 3: сумма (не среднее)
+    } else if (planNum === 3 || planNum === 9) {
+        // Планы 3 и 8 (абс. число): сумма (не среднее)
         let sumP = 0, sumA = 0;
 
         dataRows.forEach(row => {
@@ -795,7 +873,7 @@ async function loadPlansFromServer() {
         const result = await response.json();
         
         if (result.success && result.plans) {
-            for (let i = 1; i <= 8; i++) {
+            for (let i = 1; i <= 9; i++) {
                 const planId = `plan${i}`;
                 if (result.plans[planId]) {
                     restoreTableData(planId, result.plans[planId]);
@@ -849,8 +927,8 @@ async function loadPlansFromServer() {
     }
 }
 
-// Маппинг внутреннего номера плана → отображаемый номер (план 6 скрыт: 7→6, 8→7)
-const PLAN_DISPLAY_NUMBER = { 7: 6, 8: 7 };
+// Маппинг внутреннего номера плана → отображаемый номер (план 6 скрыт: 7→6, 8→7, 9→8)
+const PLAN_DISPLAY_NUMBER = { 7: 6, 8: 7, 9: 8 };
 
 // Скачивание текущего плана
 async function downloadCurrentPlan() {
@@ -959,12 +1037,13 @@ function sortByCoefficient(planId, headerTh) {
     const totalRow = rows.find(r => r.querySelector('td:first-child')?.textContent.trim() === '-');
     const dataRows = rows.filter(r => r !== totalRow);
 
+    // Коэффициент: план 7 → col 4, остальные → col 2
+    const planNum = parseInt(planId.replace('plan', ''), 10);
+    const coeffCol = planNum === 7 ? 4 : 2;
+
     dataRows.sort((a, b) => {
-        // Коэффициент всегда в последнем input (readonly), независимо от плана
-        const aInputs = a.querySelectorAll('input');
-        const bInputs = b.querySelectorAll('input');
-        const aVal = parseCoeffVal(aInputs[aInputs.length - 1]?.value);
-        const bVal = parseCoeffVal(bInputs[bInputs.length - 1]?.value);
+        const aVal = parseCoeffVal(a.querySelector(`input[data-col="${coeffCol}"]`)?.value);
+        const bVal = parseCoeffVal(b.querySelector(`input[data-col="${coeffCol}"]`)?.value);
         return next === 'desc' ? bVal - aVal : aVal - bVal;
     });
 
