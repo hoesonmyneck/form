@@ -141,12 +141,12 @@ function setDefaultDates() {
 }
 
 // =====================================================================
-// План № 7 (внутренний plan8): столбец «Оценка» (Плохо/Удовлетв./Хорошо)
+// План № 7 (внутренний plan8): столбец «Оценка» (Отлично/Хорошо/Удовлетв./Плохо)
 // Кликабелен и редактируется только комитетом (как плановые показатели).
 // Значение хранится в скрытом input data-col="3" и попадает в сохранение
 // как дополнительная колонка строки.
 // =====================================================================
-const OCENKA_OPTIONS = ['Плохо', 'Удовлетворительно', 'Хорошо'];
+const OCENKA_OPTIONS = ['Отлично', 'Хорошо', 'Удовлетворительно', 'Плохо'];
 let canEditOcenka = false; // выставляется в applyColumnRestrictions по роли
 
 function buildOcenkaCell(planNum, rowIdx, isTotalRow) {
@@ -179,9 +179,10 @@ function refreshOcenkaCell(planNum, rowIdx) {
     cell.querySelectorAll('.ocenka-opt').forEach(span => {
         const on = span.dataset.val === selected;
         span.classList.toggle('selected', on);
-        span.classList.remove('sel-good', 'sel-mid', 'sel-bad');
+        span.classList.remove('sel-exc', 'sel-good', 'sel-mid', 'sel-bad');
         if (on) {
-            if (selected === 'Хорошо') span.classList.add('sel-good');
+            if (selected === 'Отлично') span.classList.add('sel-exc');
+            else if (selected === 'Хорошо') span.classList.add('sel-good');
             else if (selected === 'Удовлетворительно') span.classList.add('sel-mid');
             else if (selected === 'Плохо') span.classList.add('sel-bad');
         }
