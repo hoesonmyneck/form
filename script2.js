@@ -384,9 +384,16 @@ function applyColumnRestrictions() {
             const isP7 = (planNum === 7);
 
             // План 10: плановых показателей нет — все 4 поля вводит регион.
-            // viewer_p78 — тоже вводит все 4 поля; viewer, viewer_p7, plan_only — только просмотр.
+            // Регион правит только текущий месяц (data-col 4..7), прошлый (0..3) — только просмотр.
+            // viewer_p78 — оба месяца; viewer, viewer_p7, plan_only — только просмотр.
             if (planNum === DECL_PLAN) {
-                if (['viewer', 'viewer_p7', 'plan_only'].includes(role)) inputs.forEach(lockInput);
+                if (['viewer', 'viewer_p7', 'plan_only'].includes(role)) {
+                    inputs.forEach(lockInput);
+                } else if (userRegionIndex !== null) {
+                    row.querySelectorAll('input[data-col]').forEach(inp => {
+                        if (Number(inp.dataset.col) < 4) lockInput(inp);
+                    });
+                }
                 return;
             }
 
