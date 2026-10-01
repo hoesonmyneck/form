@@ -88,7 +88,7 @@ function checkAuth() {
 
             // Блокируем поля дат для не-админов
             if (data.user.role !== 'admin') {
-                for (let p = 1; p <= 9; p++) {
+                for (let p = 1; p <= 10; p++) {
                     const el = document.getElementById(`plan${p}-date`);
                     if (el) {
                         el.disabled = true;
@@ -121,7 +121,11 @@ const notes = {};
 let notesLoadedFromServer = false;
 
 // Планы, для которых строка «Всего» рассчитывается автоматически
-const AUTO_TOTAL_PLANS = [1, 2, 3, 4, 5, 7, 8, 9];
+const AUTO_TOTAL_PLANS = [1, 2, 3, 4, 5, 7, 8, 9, 10];
+
+// План № 9 (внутренний plan10): декларации — 4 вводимых столбца без коэффициента
+// received(0), approved(1), rejected(2), pending(3); «Всего» = сумма по каждому
+const DECL_PLAN = 10;
 
 // Текущая дата по Астане (UTC+5) в формате "6 марта 2026"
 function getCurrentDateAstana() {
@@ -134,7 +138,7 @@ function getCurrentDateAstana() {
 // Устанавливаем текущую дату для всех планов (всегда обновляем)
 function setDefaultDates() {
     const today = getCurrentDateAstana();
-    for (let p = 1; p <= 9; p++) {
+    for (let p = 1; p <= 10; p++) {
         const el = document.getElementById(`plan${p}-date`);
         if (el) el.value = today;
     }
@@ -201,7 +205,7 @@ function refreshAllOcenka(planNum) {
 
 // Инициализация таблиц
 function initializeTables() {
-    for (let i = 1; i <= 9; i++) {
+    for (let i = 1; i <= 10; i++) {
         const tbody = document.getElementById(`plan${i}-tbody`);
         if (!tbody) continue;
 
@@ -213,6 +217,18 @@ function initializeTables() {
         const hasOcenka = (i === 8); // план 8 (отображ. № 7) — доп. столбец «Оценка»
 
         function makeRow(rowIdx, regionCell) {
+            if (i === DECL_PLAN) {
+                const rr = typeof rowIdx === 'number' ? rowIdx : 20;
+                const intNum = 'type="number" step="1" min="0" placeholder="0"';
+                let cellsHtml = `
+                <td style="text-align:center; font-weight:600;">${typeof rowIdx === 'number' ? rowIdx + 1 : '-'}</td>
+                <td>${regionCell}</td>`;
+                for (let c = 0; c < 4; c++) {
+                    cellsHtml += `
+                <td><input ${intNum} data-plan="${i}" data-row="${rr}" data-col="${c}" oninput="calculateTotals(${i})"><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},${c})" title="Добавить примечание">📝</button></td>`;
+                }
+                return cellsHtml;
+            }
             if (isP7) {
                 // Структура plan7: kol_del(0), planned_qty(1), planned_pct(2), actual_pct(3), coeff(4=readonly)
                 // Коэффициент = actual_pct / planned_pct * 100
@@ -267,7 +283,7 @@ function initializeTables() {
 function applyRegionalFilter() {
     if (userRegionIndex === null) return;
 
-    for (let i = 1; i <= 9; i++) {
+    for (let i = 1; i <= 10; i++) {
         const tbody = document.getElementById(`plan${i}-tbody`);
         if (!tbody) continue;
         const rows = tbody.querySelectorAll('tr');
@@ -296,7 +312,7 @@ function applyColumnRestrictions() {
 
     const role = currentUserRole;
 
-    for (let planNum = 1; planNum <= 9; planNum++) {
+    for (let planNum = 1; planNum <= 10; planNum++) {
         const tbody = document.getElementById(`plan${planNum}-tbody`);
         if (!tbody) continue;
 
@@ -306,6 +322,13 @@ function applyColumnRestrictions() {
         tbody.querySelectorAll('tr').forEach((row) => {
             const inputs = row.querySelectorAll('input');
             const isP7 = (planNum === 7);
+
+            // План 10: плановых показателей нет — все 4 поля вводит регион.
+            // viewer*, plan_only — только просмотр.
+            if (planNum === DECL_PLAN) {
+                if (['viewer', 'viewer_p7', 'viewer_p78', 'plan_only'].includes(role)) inputs.forEach(lockInput);
+                return;
+            }
 
             if (role === 'viewer_p78') {
                 // Просмотр всех планов; на планах 7 и 8 (внутр. plan8 и plan9)
@@ -412,9 +435,9 @@ function applyCoefficientCellColor(input) {
 }
 
 function refreshCoefficientColorsAllPlans() {
-    for (let planNum = 1; planNum <= 9; planNum++) {
+    for (let planNum = 1; planNum <= 10; planNum++) {
         const tbody = document.getElementById(`plan${planNum}-tbody`);
-        if (!tbody) continue;
+        if (!tbody || planNum === DECL_PLAN) continue; // у плана 10 нет коэффициента
         const coeffCol = planNum === 7 ? 4 : 2;
         const coeffInputs = tbody.querySelectorAll(`input[data-plan="${planNum}"][data-col="${coeffCol}"]`);
         coeffInputs.forEach(applyCoefficientCellColor);
@@ -573,6 +596,18 @@ function calculateTotals(planNum) {
         const normalized = Math.max(0, Math.min(100, Math.round(value)));
         return String(normalized);
     };
+
+    if (planNum === DECL_PLAN) {
+        // План 10 (отображается как 9): сумма по каждому из 4 столбцов, коэффициента нет
+        for (let c = 0; c < 4; c++) {
+            let sum = 0;
+            dataRows.forEach(row => {
+                sum += parseFloat(row.querySelectorAll('input')[c]?.value) || 0;
+            });
+            if (totalInputs[c]) totalInputs[c].value = sum || '';
+        }
+        return;
+    }
 
     if (planNum === 8) {
         // План 8 (отображается как 7): формат "X/Y"
@@ -874,7 +909,7 @@ async function loadPlansFromServer() {
         const result = await response.json();
         
         if (result.success && result.plans) {
-            for (let i = 1; i <= 9; i++) {
+            for (let i = 1; i <= 10; i++) {
                 const planId = `plan${i}`;
                 if (result.plans[planId]) {
                     restoreTableData(planId, result.plans[planId]);
@@ -928,8 +963,8 @@ async function loadPlansFromServer() {
     }
 }
 
-// Маппинг внутреннего номера плана → отображаемый номер (план 6 скрыт: 7→6, 8→7, 9→8)
-const PLAN_DISPLAY_NUMBER = { 7: 6, 8: 7, 9: 8 };
+// Маппинг внутреннего номера плана → отображаемый номер (план 6 скрыт: 7→6, 8→7, 9→8, 10→9)
+const PLAN_DISPLAY_NUMBER = { 7: 6, 8: 7, 9: 8, 10: 9 };
 
 // Скачивание текущего плана
 async function downloadCurrentPlan() {

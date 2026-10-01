@@ -148,6 +148,8 @@
                             <option value="5">План № 5</option>
                             <option value="7">План № 6</option>
                             <option value="8">План № 7</option>
+                            <option value="9">План № 8</option>
+                            <option value="10">План № 9</option>
                         </select>
                     </div>
                     <div>
@@ -175,6 +177,8 @@
                                 <option value="5">План № 5</option>
                                 <option value="7">План № 6</option>
                                 <option value="8">План № 7</option>
+                                <option value="9">План № 8</option>
+                                <option value="10">План № 9</option>
                             </select>
                         </div>
                         <div>
@@ -241,6 +245,7 @@
             <button class="tab-btn" data-tab="plan7" onclick="switchTab(7)">План № 6</button>
             <button class="tab-btn" data-tab="plan8" onclick="switchTab(8)">План № 7</button>
             <button class="tab-btn" data-tab="plan9" onclick="switchTab(9)">План № 8</button>
+            <button class="tab-btn" data-tab="plan10" onclick="switchTab(10)">План № 9</button>
         </nav>
 
         <div id="plans-container"></div>
@@ -267,11 +272,12 @@
             // 6: 'Направление поступивших формуляров на подтверждение', // ПЛАН 6 СКРЫТ
             7: 'Проведение проверки пенсионных выплат по возрасту',
             8: 'Обеспечение наполнения интернет-ресурса департамента',
-            9: 'Мониторинг заполнения вакантных должностей в отделах медико-социальной экспертизы'
+            9: 'Мониторинг заполнения вакантных должностей в отделах медико-социальной экспертизы',
+            10: 'Согласование деклараций строительных объектов требованиям доступности для МГН'
         };
 
-        // Маппинг: внутренний номер плана → отображаемый (план 6 скрыт: 7→6, 8→7, 9→8)
-        const PLAN_DISPLAY_NUMS = { 1:1, 2:2, 3:3, 4:4, 5:5, 7:6, 8:7, 9:8 };
+        // Маппинг: внутренний номер плана → отображаемый (план 6 скрыт: 7→6, 8→7, 9→8, 10→9)
+        const PLAN_DISPLAY_NUMS = { 1:1, 2:2, 3:3, 4:4, 5:5, 7:6, 8:7, 9:8, 10:9 };
 
         let currentTab = 1;
         let allPlans = null;
@@ -2062,6 +2068,7 @@
             // Собираем данные по всем планам для выбранного региона (план 6 скрыт)
             for (let planNum = 1; planNum <= 9; planNum++) {
                 if (planNum === 6) continue; // ПЛАН 6 СКРЫТ
+                // План 10 (декларации) не выводим: у него нет план/факт/коэффициента
                 const planId = `plan${planNum}`;
                 const planData = allPlans[planId];
                 const displayNum = PLAN_DISPLAY_NUMS[planNum] || planNum;
@@ -2108,9 +2115,15 @@
             // plan7: [num, region, kol_del, planned_qty, planned_pct, actual_pct, coeff] (7 эл.)
             // остальные: [num, region, planned, actual, coeff] (5 эл.)
             const isP7 = (planNumber === 7);
+            const isDecl = (planNumber === 10); // [num, region, received, approved, rejected, pending]
             html += '<th style="width: 50px;">№</th>';
             html += '<th>Территориальный департамент</th>';
-            if (isP7) {
+            if (isDecl) {
+                html += '<th>Кол-во поступивших деклараций</th>';
+                html += '<th>Кол-во согласованных деклараций</th>';
+                html += '<th>Количество отказанных деклараций</th>';
+                html += '<th>Количество деклараций на рассмотрении</th>';
+            } else if (isP7) {
                 html += '<th>Кол-во назн. дел</th>';
                 html += '<th>Плановый показатель (кол-во)</th>';
                 html += '<th>Плановый показатель (%)</th>';
@@ -2119,7 +2132,7 @@
                 html += '<th>Плановый показатель</th>';
                 html += '<th>Фактический показатель</th>';
             }
-            html += '<th id="coeff-th-main" style="cursor:pointer; user-select:none;" title="Нажмите для сортировки" onclick="sortAdminPlan(\'main\')">Коэффициент исполнения</th>';
+            if (!isDecl) html += '<th id="coeff-th-main" style="cursor:pointer; user-select:none;" title="Нажмите для сортировки" onclick="sortAdminPlan(\'main\')">Коэффициент исполнения</th>';
             // План 8 (отображ. № 7) — доп. столбец «Оценка»
             const hasOcenka = (planNumber === 8);
             if (hasOcenka) html += '<th>Оценка</th>';
