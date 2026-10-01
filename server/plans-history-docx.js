@@ -36,7 +36,7 @@ const PLAN_TITLES = {
 const PLAN_DISPLAY_NUMBER = { 7: 6, 8: 7, 9: 8, 10: 9 };
 
 // Сколько колонок данных у плана (после столбцов № и регион)
-function getPlanColumns(planNumber) {
+function getPlanColumns(planNumber, declMonths) {
     if (planNumber === 7) {
         // [num, region, kol_del, planned_qty, planned_pct, actual_pct, coeff]
         return ['Кол-во дел', 'План (кол-во)', 'План (%)', 'Факт (%)', 'Коэф.'];
@@ -46,10 +46,53 @@ function getPlanColumns(planNumber) {
         return ['Плановый показатель', 'Фактический показатель', 'Коэффициент исполнения', 'Оценка'];
     }
     if (planNumber === 10) {
-        // [num, region, received, approved, rejected, pending]
-        return ['Поступило деклараций', 'Согласовано', 'Отказано', 'На рассмотрении'];
+        // [num, region, prevKey, p0..p3, curKey, c0..c3] — по 4 столбца на месяц
+        const base = ['поступило деклараций', 'согласовано', 'отказано', 'на рассмотрении'];
+        const [prev, cur] = (declMonths || []).map(declMonthName);
+        return [...base.map(b => `${prev}: ${b}`), ...base.map(b => `${cur}: ${b}`)];
     }
     return ['Плановый показатель', 'Фактический показатель', 'Коэффициент исполнения'];
+}
+
+// =====================================================================
+// План 10 (отображ. № 9): декларации за 2 месяца (прошлый и текущий).
+// Строки хранят свои месяцы: [num, region, prevKey, p0..p3, curKey, c0..c3];
+// старый формат [num, region, r, a, rej, pend] — сентябрь 2026.
+// Для снимка месяцы берутся относительно даты снимка.
+// =====================================================================
+const DECL_LEGACY_MONTH = '2026-09';
+
+function declMonthName(key) {
+    return RU_MONTHS_NOM[Number(String(key || '').split('-')[1]) - 1] || '';
+}
+
+function getDeclMonthKeys(isoDate) {
+    const [y, m] = isoDate.split('-').map(Number); // m: 1..12
+    const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return [key(new Date(y, m - 2, 1)), key(new Date(y, m - 1, 1))];
+}
+
+function normalizeDeclRow(row, prevKey, curKey) {
+    const byMonth = {};
+    if (row.length <= 6) {
+        byMonth[DECL_LEGACY_MONTH] = row.slice(2, 6);
+    } else {
+        byMonth[row[2]] = row.slice(3, 7);
+        byMonth[row[7]] = row.slice(8, 12);
+    }
+    const vals = k => (byMonth[k] || []).concat(['', '', '', '']).slice(0, 4);
+    return [row[0], row[1], prevKey, ...vals(prevKey), curKey, ...vals(curKey)];
+}
+
+// Раскладывает строки по месяцам и пересчитывает «Всего» (регионы сохраняют только свою строку)
+function normalizeDeclRows(rows, isoDate) {
+    const [prevKey, curKey] = getDeclMonthKeys(isoDate);
+    const isTotal = r => r[0] === '-' || String(r[1] || '').trim() === 'Всего';
+    const dataRows = rows.filter(r => Array.isArray(r) && !isTotal(r))
+        .map(r => normalizeDeclRow(r, prevKey, curKey));
+    const sumAt = i => dataRows.reduce((acc, r) => acc + (parseFloat(r[i]) || 0), 0) || '';
+    const total = ['-', 'Всего', prevKey, ...[3, 4, 5, 6].map(sumAt), curKey, ...[8, 9, 10, 11].map(sumAt)];
+    return { rows: [...dataRows, total], months: [prevKey, curKey] };
 }
 
 const RU_MONTHS = [
@@ -103,8 +146,8 @@ function cell(text, opts = {}) {
     });
 }
 
-function buildPlanTable(planNumber, planRows) {
-    const dataCols = getPlanColumns(planNumber);
+function buildPlanTable(planNumber, planRows, declMonths) {
+    const dataCols = getPlanColumns(planNumber, declMonths);
     const headerCells = [
         cell('№', { bold: true, fill: 'F3F4F6', align: AlignmentType.CENTER }),
         cell('Регион', { bold: true, fill: 'F3F4F6', align: AlignmentType.CENTER }),
@@ -138,7 +181,7 @@ function buildPlanTable(planNumber, planRows) {
                 }));
             });
         } else if (planNumber === 10) {
-            const values = [row[2], row[3], row[4], row[5]];
+            const values = [...row.slice(3, 7), ...row.slice(8, 12)];
             values.forEach(v => {
                 cells.push(cell(v == null ? '' : String(v), {
                     bold: isTotal, align: AlignmentType.CENTER,
@@ -230,7 +273,12 @@ function buildSnapshotBlocks(snapshot, { addPageBreakBefore = false } = {}) {
             blocks.push(paragraph(PLAN_TITLES[planNumber], { size: 22 }));
         }
 
-        blocks.push(buildPlanTable(planNumber, planRows));
+        if (planNumber === 10) {
+            const decl = normalizeDeclRows(planRows, snapshot.date);
+            blocks.push(buildPlanTable(planNumber, decl.rows, decl.months));
+        } else {
+            blocks.push(buildPlanTable(planNumber, planRows));
+        }
     });
 
     return blocks;

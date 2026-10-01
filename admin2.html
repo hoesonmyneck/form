@@ -2111,19 +2111,20 @@
             } else {
                 html += '<div style="margin-bottom:1.5rem;"></div>';
             }
+            // План 10 (отображ. № 9): своя таблица на 2 месяца
+            const isDecl = (planNumber === 10);
+            if (isDecl) {
+                html += renderDeclTable(data) + '</div>';
+                document.getElementById('plans-container').innerHTML = html;
+                return;
+            }
             html += '<table class="report-table"><thead><tr>';
             // plan7: [num, region, kol_del, planned_qty, planned_pct, actual_pct, coeff] (7 эл.)
             // остальные: [num, region, planned, actual, coeff] (5 эл.)
             const isP7 = (planNumber === 7);
-            const isDecl = (planNumber === 10); // [num, region, received, approved, rejected, pending]
             html += '<th style="width: 50px;">№</th>';
             html += '<th>Территориальный департамент</th>';
-            if (isDecl) {
-                html += '<th>Кол-во поступивших деклараций</th>';
-                html += '<th>Кол-во согласованных деклараций</th>';
-                html += '<th>Количество отказанных деклараций</th>';
-                html += '<th>Количество деклараций на рассмотрении</th>';
-            } else if (isP7) {
+            if (isP7) {
                 html += '<th>Кол-во назн. дел</th>';
                 html += '<th>Плановый показатель (кол-во)</th>';
                 html += '<th>Плановый показатель (%)</th>';
@@ -2161,6 +2162,72 @@
 
             html += '</tbody></table></div>';
             document.getElementById('plans-container').innerHTML = html;
+        }
+
+        // =====================================================================
+        // План 10 (отображ. № 9): декларации за 2 месяца — прошлый и текущий.
+        // Строка: [num, region, prevKey, p0..p3, curKey, c0..c3] (старый формат
+        // из 6 эл. — сентябрь 2026). Логика раскладки та же, что в script2.js.
+        // =====================================================================
+        const DECL_LEGACY_MONTH = '2026-09';
+        const DECL_MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+                                 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+        function getDeclMonthKeys() {
+            const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Almaty' }));
+            const y = now.getFullYear(), m = now.getMonth();
+            const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return [key(new Date(y, m - 1, 1)), key(new Date(y, m, 1))];
+        }
+
+        function normalizeDeclRow(rowData, prevKey, curKey) {
+            const byMonth = {};
+            if (rowData.length <= 6) {
+                byMonth[DECL_LEGACY_MONTH] = rowData.slice(2, 6);
+            } else {
+                byMonth[rowData[2]] = rowData.slice(3, 7);
+                byMonth[rowData[7]] = rowData.slice(8, 12);
+            }
+            const vals = k => (byMonth[k] || []).concat(['', '', '', '']).slice(0, 4);
+            return [rowData[0], rowData[1], prevKey, ...vals(prevKey), curKey, ...vals(curKey)];
+        }
+
+        function renderDeclTable(data) {
+            const [prevKey, curKey] = getDeclMonthKeys();
+            const monthName = k => DECL_MONTHS_NOM[Number(k.split('-')[1]) - 1];
+            const cols = ['Кол-во поступивших деклараций', 'Кол-во согласованных деклараций',
+                          'Количество отказанных деклараций', 'Количество деклараций на рассмотрении'];
+            const sub = cols.map(c => `<th>${c}</th>`).join('');
+            let html = '<table class="report-table"><thead>';
+            html += '<tr><th rowspan="2" style="width: 50px;">№</th><th rowspan="2">Территориальный департамент</th>';
+            html += `<th colspan="4">${monthName(prevKey)}</th><th colspan="4" style="border-left: 3px solid #1a56db;">${monthName(curKey)}</th></tr>`;
+            html += `<tr>${sub}${sub}</tr></thead><tbody>`;
+
+            // Регионы сохраняют только свою строку, поэтому «Всего» пересчитываем здесь
+            const rows = data.map(r => normalizeDeclRow(r, prevKey, curKey));
+            const dataRows = rows.filter(r => !(r[0] === '-' || String(r[1]).trim() === 'Всего'));
+            const values = r => [...r.slice(3, 7), ...r.slice(8, 12)];
+            const totals = [0, 1, 2, 3, 4, 5, 6, 7].map(c =>
+                dataRows.reduce((s, r) => s + (parseFloat(values(r)[c]) || 0), 0));
+
+            dataRows.forEach((row, rowIndex) => {
+                html += `<tr><td style="text-align: center; font-weight: 600;">${row[0]}</td><td><strong>${row[1]}</strong></td>`;
+                values(row).forEach((cell, c) => {
+                    const noteKey = `plan10_${rowIndex}_${c}`;
+                    const hasNote = allNotes[noteKey];
+                    const sep = c === 4 ? ' border-left: 3px solid #1a56db;' : '';
+                    const noteStyle = hasNote ? ' background: #fef3c7; cursor: pointer;' : '';
+                    const clickHandler = hasNote ? `onclick="showNote('${noteKey}')" title="Кликните для просмотра примечания"` : '';
+                    html += `<td style="text-align: center;${sep}${noteStyle}" ${clickHandler}>${cell || '—'}${hasNote ? ' 📝' : ''}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '<tr style="background:#e0f2fe; font-weight:600;"><td style="text-align: center;">-</td><td><strong>Всего</strong></td>';
+            totals.forEach((t, c) => {
+                html += `<td style="text-align: center;${c === 4 ? ' border-left: 3px solid #1a56db;' : ''}">${t || '—'}</td>`;
+            });
+            html += '</tr></tbody></table>';
+            return html;
         }
 
         function showNote(noteKey) {

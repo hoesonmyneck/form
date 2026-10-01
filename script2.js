@@ -124,8 +124,61 @@ let notesLoadedFromServer = false;
 const AUTO_TOTAL_PLANS = [1, 2, 3, 4, 5, 7, 8, 9, 10];
 
 // План № 9 (внутренний plan10): декларации — 4 вводимых столбца без коэффициента
-// received(0), approved(1), rejected(2), pending(3); «Всего» = сумма по каждому
+// (поступило, согласовано, отказано, на рассмотрении) × 2 месяца: прошлый и текущий.
+// Формат строки: [num, region, prevKey, p0..p3, curKey, c0..c3], ключ месяца — 'YYYY-MM'.
+// Каждая строка хранит свои месяцы, при загрузке значения раскладываются по месяцам
+// (в новом месяце текущий уезжает влево, справа — пустой новый). «Всего» = суммы.
 const DECL_PLAN = 10;
+// Строки старого формата [num, region, r, a, rej, pend] заполнялись в сентябре 2026
+const DECL_LEGACY_MONTH = '2026-09';
+const DECL_MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+                         'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+// [prevKey, curKey] по текущей дате Астаны
+function getDeclMonthKeys() {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Almaty' }));
+    const y = now.getFullYear(), m = now.getMonth(); // m: 0..11
+    const prev = new Date(y, m - 1, 1);
+    const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return [key(prev), key(new Date(y, m, 1))];
+}
+
+// '2026-10' → 'Октябрь' (шапки столбцов называются месяцами, без года)
+function formatDeclMonth(key) {
+    const m = Number(String(key).split('-')[1]);
+    return DECL_MONTHS_NOM[m - 1] || '';
+}
+
+// Приводит сохранённую строку плана 10 (любого формата) к месяцам [prevKey, curKey]
+function normalizeDeclRow(rowData, prevKey, curKey) {
+    const byMonth = {};
+    if (rowData.length <= 6) {
+        byMonth[DECL_LEGACY_MONTH] = rowData.slice(2, 6);
+    } else {
+        byMonth[rowData[2]] = rowData.slice(3, 7);
+        byMonth[rowData[7]] = rowData.slice(8, 12);
+    }
+    const vals = k => (byMonth[k] || []).concat(['', '', '', '']).slice(0, 4);
+    return [rowData[0], rowData[1], prevKey, ...vals(prevKey), curKey, ...vals(curKey)];
+}
+
+// Двухуровневая шапка: месяцы сверху, 4 столбца под каждым
+function renderDeclHeader() {
+    const thead = document.getElementById('plan10-thead');
+    if (!thead) return;
+    const [prevKey, curKey] = getDeclMonthKeys();
+    const cols = ['Кол-во поступивших деклараций', 'Кол-во согласованных деклараций',
+                  'Количество отказанных деклараций', 'Количество деклараций на рассмотрении'];
+    const sub = cols.map(c => `<th>${c}</th>`).join('');
+    thead.innerHTML = `
+        <tr>
+            <th rowspan="2" style="width: 50px;">№</th>
+            <th rowspan="2" style="width: 260px;">Территориальные департаменты КРиКСЗН</th>
+            <th colspan="4">${formatDeclMonth(prevKey)}</th>
+            <th colspan="4" style="border-left: 3px solid #1a56db;">${formatDeclMonth(curKey)}</th>
+        </tr>
+        <tr>${sub}${sub}</tr>`;
+}
 
 // Текущая дата по Астане (UTC+5) в формате "6 марта 2026"
 function getCurrentDateAstana() {
@@ -220,12 +273,19 @@ function initializeTables() {
             if (i === DECL_PLAN) {
                 const rr = typeof rowIdx === 'number' ? rowIdx : 20;
                 const intNum = 'type="number" step="1" min="0" placeholder="0"';
+                const monthKeys = getDeclMonthKeys();
                 let cellsHtml = `
                 <td style="text-align:center; font-weight:600;">${typeof rowIdx === 'number' ? rowIdx + 1 : '-'}</td>
                 <td>${regionCell}</td>`;
-                for (let c = 0; c < 4; c++) {
+                // data-col 0..3 — прошлый месяц, 4..7 — текущий. Скрытый input с ключом
+                // месяца идёт перед каждой четвёркой, чтобы попасть в строку при сохранении.
+                for (let c = 0; c < 8; c++) {
+                    const monthInput = (c % 4 === 0)
+                        ? `<input type="hidden" data-decl-month="${c / 4}" value="${monthKeys[c / 4]}">`
+                        : '';
+                    const sep = (c === 4) ? ' style="border-left: 3px solid #1a56db;"' : '';
                     cellsHtml += `
-                <td><input ${intNum} data-plan="${i}" data-row="${rr}" data-col="${c}" oninput="calculateTotals(${i})"><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},${c})" title="Добавить примечание">📝</button></td>`;
+                <td${sep}>${monthInput}<input ${intNum} data-plan="${i}" data-row="${rr}" data-col="${c}" oninput="calculateTotals(${i})"><button class="note-btn" onclick="showNoteModal('plan${i}',${rr},${c})" title="Добавить примечание">📝</button></td>`;
                 }
                 return cellsHtml;
             }
@@ -598,13 +658,14 @@ function calculateTotals(planNum) {
     };
 
     if (planNum === DECL_PLAN) {
-        // План 10 (отображается как 9): сумма по каждому из 4 столбцов, коэффициента нет
-        for (let c = 0; c < 4; c++) {
+        // План 10 (отображается как 9): сумма по каждому из 8 столбцов (2 месяца), коэффициента нет
+        for (let c = 0; c < 8; c++) {
             let sum = 0;
             dataRows.forEach(row => {
-                sum += parseFloat(row.querySelectorAll('input')[c]?.value) || 0;
+                sum += parseFloat(row.querySelector(`input[data-col="${c}"]`)?.value) || 0;
             });
-            if (totalInputs[c]) totalInputs[c].value = sum || '';
+            const totalInput = totalRow.querySelector(`input[data-col="${c}"]`);
+            if (totalInput) totalInput.value = sum || '';
         }
         return;
     }
@@ -801,10 +862,13 @@ function restoreTableData(planId, data) {
     const tbody = document.getElementById(`${planId}-tbody`);
     if (!tbody) return; // план скрыт (например plan6)
     const rows = tbody.querySelectorAll('tr');
-    
+    const declMonths = planId === `plan${DECL_PLAN}` ? getDeclMonthKeys() : null;
+
     data.forEach((rowData, index) => {
         if (index >= rows.length) return;
         const inputs = rows[index].querySelectorAll('input');
+        // План 10: раскладываем значения по месяцам [прошлый, текущий]
+        if (declMonths) rowData = normalizeDeclRow(rowData, declMonths[0], declMonths[1]);
         
         // Обратная совместимость для plan7:
         // Актуальный формат 7 эл.: [num, region, kol_del, planned_qty, planned_pct, actual_pct, coeff]
@@ -1387,6 +1451,7 @@ async function applyOraclePlan7() {
 document.addEventListener('DOMContentLoaded', () => {
     if (!checkAuth()) return;
     
+    renderDeclHeader();
     initializeTables();
     initTabs();
     initSortableHeaders();

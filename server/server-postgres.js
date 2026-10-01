@@ -2008,57 +2008,80 @@ function buildPlan8TableXml(planData) {
 }
 
 // План 10 (отображается как № 9): декларации строительных объектов.
-// Структура строки: [num, region, received, approved, rejected, pending]
+// Данные за 2 месяца (прошлый и текущий), строка с клиента:
+// [num, region, prevKey, p0..p3, curKey, c0..c3]; ключ месяца — 'YYYY-MM'.
 function buildPlan10TableXml(planData) {
     const esc = s => String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-    const colW = [400, 2900, 1700, 1700, 1700, 1700];
-    const totalW = colW.reduce((a, b) => a + b, 0);
+    const MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+                        'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    const monthName = key => MONTHS_NOM[Number(String(key || '').split('-')[1]) - 1] || '';
 
-    const tcProp = (w) => `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>
+    const colW = [400, 2100, 950, 950, 950, 950, 950, 950, 950, 950];
+    const totalW = colW.reduce((a, b) => a + b, 0);
+    const monthW = colW[2] * 4;
+
+    // extra — gridSpan / vMerge для объединённых ячеек шапки
+    const tcProp = (w, extra = '') => `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${extra}
           <w:tcBorders>
             <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>
             <w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>
             <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
             <w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>
           </w:tcBorders>
+          <w:vAlign w:val="center"/>
         </w:tcPr>`;
 
-    const cell = (text, w, { bold = false, center = true } = {}) => {
+    const cell = (text, w, { bold = false, center = true, extra = '' } = {}) => {
         const jc = center ? '<w:jc w:val="center"/>' : '<w:jc w:val="left"/>';
-        const rpr = bold ? '<w:rPr><w:b/><w:bCs/></w:rPr>' : '<w:rPr/>';
-        return `<w:tc>${tcProp(w)}
-          <w:p><w:pPr>${jc}<w:spacing w:before="60" w:after="60"/>
+        const rpr = `<w:rPr>${bold ? '<w:b/><w:bCs/>' : ''}<w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>`;
+        return `<w:tc>${tcProp(w, extra)}
+          <w:p><w:pPr>${jc}<w:spacing w:before="40" w:after="40"/>
           </w:pPr><w:r>${rpr}<w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p>
         </w:tc>`;
     };
 
-    const headers = [
-        '№',
-        'Территориальные департаменты КРиКСЗН',
+    const first = planData[0] || [];
+    const prevName = monthName(first[2]);
+    const curName = monthName(first[7]);
+
+    const subHeaders = [
         'Кол-во поступивших деклараций',
         'Кол-во согласованных деклараций',
         'Количество отказанных деклараций',
         'Количество деклараций на рассмотрении'
     ];
 
-    const headerRow = '<w:tr>' + headers.map((h, i) =>
-        cell(h, colW[i], { bold: true, center: true })
-    ).join('') + '</w:tr>';
+    const vStart = '<w:vMerge w:val="restart"/>';
+    const vCont = '<w:vMerge/>';
+    const span4 = '<w:gridSpan w:val="4"/>';
+
+    const headerRow1 = '<w:tr>'
+        + cell('№', colW[0], { bold: true, extra: vStart })
+        + cell('Территориальные департаменты КРиКСЗН', colW[1], { bold: true, extra: vStart })
+        + cell(prevName, monthW, { bold: true, extra: span4 })
+        + cell(curName, monthW, { bold: true, extra: span4 })
+        + '</w:tr>';
+    const headerRow2 = '<w:tr>'
+        + cell('', colW[0], { extra: vCont })
+        + cell('', colW[1], { extra: vCont })
+        + [...subHeaders, ...subHeaders].map((h, i) => cell(h, colW[i + 2], { bold: true })).join('')
+        + '</w:tr>';
+    const headerRow = headerRow1 + headerRow2;
 
     let dataRows = '';
     planData.forEach((row, idx) => {
         const isTotal = row[0] === '-' || String(row[1] || '').trim() === 'Всего';
         const num = isTotal ? '-' : String(idx + 1);
+        const values = row.length > 6
+            ? [...row.slice(3, 7), ...row.slice(8, 12)]
+            : [...row.slice(2, 6), '', '', '', ''];
         dataRows += '<w:tr>'
             + cell(num,    colW[0], { bold: isTotal, center: true })
             + cell(row[1], colW[1], { bold: isTotal, center: false })
-            + cell(row[2], colW[2], { bold: isTotal, center: true })
-            + cell(row[3], colW[3], { bold: isTotal, center: true })
-            + cell(row[4], colW[4], { bold: isTotal, center: true })
-            + cell(row[5], colW[5], { bold: isTotal, center: true })
+            + values.map((v, i) => cell(v, colW[i + 2], { bold: isTotal, center: true })).join('')
             + '</w:tr>';
     });
 
