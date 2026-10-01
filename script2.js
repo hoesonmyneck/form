@@ -324,9 +324,9 @@ function applyColumnRestrictions() {
             const isP7 = (planNum === 7);
 
             // План 10: плановых показателей нет — все 4 поля вводит регион.
-            // viewer*, plan_only — только просмотр.
+            // viewer_p78 — тоже вводит все 4 поля; viewer, viewer_p7, plan_only — только просмотр.
             if (planNum === DECL_PLAN) {
-                if (['viewer', 'viewer_p7', 'viewer_p78', 'plan_only'].includes(role)) inputs.forEach(lockInput);
+                if (['viewer', 'viewer_p7', 'plan_only'].includes(role)) inputs.forEach(lockInput);
                 return;
             }
 
