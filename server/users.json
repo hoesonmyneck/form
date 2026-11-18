@@ -913,6 +913,11 @@
       "userId": "reg001",
       "token": "m3q6w0nwaimrt3cc3i",
       "expiresAt": "2026-07-27T10:37:46.686Z"
+    },
+    {
+      "userId": "admin002",
+      "token": "y9j8rk6ofomwlo419n",
+      "expiresAt": "2026-11-25T05:15:33.611Z"
     }
   ]
 }

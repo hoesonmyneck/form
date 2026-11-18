@@ -45,6 +45,10 @@ function getPlanColumns(planNumber, declMonths) {
         // [num, region, planned, actual, coeff, ocenka]
         return ['Плановый показатель', 'Фактический показатель', 'Коэффициент исполнения', 'Оценка'];
     }
+    if (planNumber === 9) {
+        // [num, region, постоянные, временные, факт, коэф]
+        return ['План: постоянных вакансий', 'План: временных вакансий', 'Фактический показатель', 'Коэффициент исполнения'];
+    }
     if (planNumber === 10) {
         // [num, region, prevKey, p0..p3, curKey, c0..c3] — по 4 столбца на месяц
         const base = ['поступило деклараций', 'согласовано', 'отказано', 'на рассмотрении'];
@@ -182,6 +186,18 @@ function buildPlanTable(planNumber, planRows, declMonths) {
             });
         } else if (planNumber === 10) {
             const values = [...row.slice(3, 7), ...row.slice(8, 12)];
+            values.forEach(v => {
+                cells.push(cell(v == null ? '' : String(v), {
+                    bold: isTotal, align: AlignmentType.CENTER,
+                    fill: isTotal ? 'FEF3C7' : undefined
+                }));
+            });
+        } else if (planNumber === 9) {
+            // Снимки до разбивки плана хранят 5 эл. [num, region, план, факт, коэф] —
+            // старый план выводим в «постоянных», «временные» пустые.
+            const values = row.length > 5
+                ? [row[2], row[3], row[4], row[5]]
+                : [row[2], '', row[3], row[4]];
             values.forEach(v => {
                 cells.push(cell(v == null ? '' : String(v), {
                     bold: isTotal, align: AlignmentType.CENTER,

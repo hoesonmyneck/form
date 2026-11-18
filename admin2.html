@@ -279,6 +279,17 @@
         // Маппинг: внутренний номер плана → отображаемый (план 6 скрыт: 7→6, 8→7, 9→8, 10→9)
         const PLAN_DISPLAY_NUMS = { 1:1, 2:2, 3:3, 4:4, 5:5, 7:6, 8:7, 9:8, 10:9 };
 
+        // План 9 (отображ. № 8): вакансии, плановый показатель разбит на два столбца.
+        // Строка: [num, region, постоянные, временные, факт, коэф]; старый формат (5 эл.):
+        // [num, region, план, факт, коэф] — план показываем в «постоянных».
+        // noteCols[i] — столбец примечания для i-й ячейки данных (у старых строк
+        // примечания сохранены под старыми номерами столбцов).
+        const VAC_PLAN = 9;
+        function normalizeVacRow(row) {
+            if (row.length > 5) return { cells: row.slice(0, 6), noteCols: [0, 1, 2, 3] };
+            return { cells: [row[0], row[1], row[2], '', row[3], row[4]], noteCols: [0, null, 1, 2] };
+        }
+
         let currentTab = 1;
         let allPlans = null;
         let allNotes = {};
@@ -651,7 +662,8 @@
 
         function getRowCoeffForPlan(planNumber, row) {
             if (!row) return null;
-            const coeffIdx = planNumber === 7 ? 6 : 4;
+            let coeffIdx = planNumber === 7 ? 6 : 4;
+            if (planNumber === VAC_PLAN && row.length > 5) coeffIdx = 5;
             if (planNumber === 7) {
                 const pairAvg = parsePercentPairAverage(row[coeffIdx]);
                 if (Number.isFinite(pairAvg)) return pairAvg;
@@ -1782,6 +1794,10 @@
                 html += '<th>Плановый показатель (кол-во)</th>';
                 html += '<th>Плановый показатель (%)</th>';
                 html += '<th>Фактический показатель (%)</th>';
+            } else if (planNumber === VAC_PLAN) {
+                html += '<th>Плановый показатель (постоянных вакансий)</th>';
+                html += '<th>Плановый показатель (временных вакансий)</th>';
+                html += '<th>Фактический показатель</th>';
             } else {
                 html += '<th>Плановый показатель</th><th>Фактический показатель</th>';
             }
@@ -1790,13 +1806,15 @@
             html += '</tr></thead><tbody id="history-plan-tbody">';
             data.forEach((row, rowIndex) => {
                 const isTotal = row[0] === '-' || String(row[1]).trim() === 'Всего';
-                const coeffVal = isHistP7 ? (row[6] || '') : (row[4] || '');
+                const vac = (planNumber === VAC_PLAN) ? normalizeVacRow(row) : null;
+                const cells = vac ? vac.cells : row;
+                const coeffVal = isHistP7 ? (row[6] || '') : ((vac ? cells[5] : row[4]) || '');
                 html += `<tr data-total="${isTotal}" data-coeff="${coeffVal}">`;
-                row.forEach((cell, colIndex) => {
+                cells.forEach((cell, colIndex) => {
                     if (colIndex === 0) html += `<td style="text-align:center; font-weight:600;">${cell}</td>`;
                     else if (colIndex === 1) html += `<td><strong>${cell}</strong></td>`;
                     else {
-                        const nk = `plan${planNumber}_${rowIndex}_${colIndex - 2}`;
+                        const nk = `plan${planNumber}_${rowIndex}_${vac ? vac.noteCols[colIndex - 2] : colIndex - 2}`;
                         const hasNote = historyNotes[nk];
                         html += `<td style="text-align:center;${hasNote ? ' background:#fef3c7; cursor:pointer;' : ''}"${hasNote ? ` onclick="showNote_h('${nk}')" title="Кликните для просмотра"` : ''}>${cell || '—'}${hasNote ? ' 📝' : ''}</td>`;
                     }
@@ -2076,13 +2094,21 @@
                 if (planData && planData[regionIndex]) {
                     const row = planData[regionIndex];
                     const tr = document.createElement('tr');
+                    let [planned, actual, coeff] = [row[2], row[3], row[4]];
+                    if (planNum === VAC_PLAN && row.length > 5) {
+                        // План = постоянные + временные вакансии
+                        const sum = (parseFloat(row[2]) || 0) + (parseFloat(row[3]) || 0);
+                        planned = sum ? String(sum) : '';
+                        actual = row[4];
+                        coeff = row[5];
+                    }
                     
                     tr.innerHTML = `
                         <td style="text-align: center; font-weight: 600;">${displayNum}</td>
                         <td><strong>${PLAN_TITLES[planNum] || `План № ${displayNum}`}</strong></td>
-                        <td style="text-align: center;">${row[2] || '—'}</td>
-                        <td style="text-align: center;">${row[3] || '—'}</td>
-                        <td style="text-align: center;">${row[4] || '—'}</td>
+                        <td style="text-align: center;">${planned || '—'}</td>
+                        <td style="text-align: center;">${actual || '—'}</td>
+                        <td style="text-align: center;">${coeff || '—'}</td>
                     `;
                     
                     tbody.appendChild(tr);
@@ -2120,6 +2146,7 @@
             }
             html += '<table class="report-table"><thead><tr>';
             // plan7: [num, region, kol_del, planned_qty, planned_pct, actual_pct, coeff] (7 эл.)
+            // plan9: [num, region, постоянные, временные, факт, coeff] (6 эл., см. normalizeVacRow)
             // остальные: [num, region, planned, actual, coeff] (5 эл.)
             const isP7 = (planNumber === 7);
             html += '<th style="width: 50px;">№</th>';
@@ -2129,6 +2156,10 @@
                 html += '<th>Плановый показатель (кол-во)</th>';
                 html += '<th>Плановый показатель (%)</th>';
                 html += '<th>Фактический показатель (%)</th>';
+            } else if (planNumber === VAC_PLAN) {
+                html += '<th>Плановый показатель (постоянных вакансий)</th>';
+                html += '<th>Плановый показатель (временных вакансий)</th>';
+                html += '<th>Фактический показатель</th>';
             } else {
                 html += '<th>Плановый показатель</th>';
                 html += '<th>Фактический показатель</th>';
@@ -2141,15 +2172,17 @@
 
             data.forEach((row, rowIndex) => {
                 const isTotal = row[0] === '-' || String(row[1]).trim() === 'Всего';
-                const coeffVal = isP7 ? (row[6] || '') : (row[4] || '');
+                const vac = (planNumber === VAC_PLAN) ? normalizeVacRow(row) : null;
+                const cells = vac ? vac.cells : row;
+                const coeffVal = isP7 ? (row[6] || '') : ((vac ? cells[5] : row[4]) || '');
                 html += `<tr data-total="${isTotal}" data-coeff="${coeffVal}">`;
-                row.forEach((cell, colIndex) => {
+                cells.forEach((cell, colIndex) => {
                     if (colIndex === 0) {
                         html += `<td style="text-align: center; font-weight: 600;">${cell}</td>`;
                     } else if (colIndex === 1) {
                         html += `<td><strong>${cell}</strong></td>`;
                     } else {
-                        const noteKey = `plan${planNumber}_${rowIndex}_${colIndex - 2}`;
+                        const noteKey = `plan${planNumber}_${rowIndex}_${vac ? vac.noteCols[colIndex - 2] : colIndex - 2}`;
                         const hasNote = allNotes[noteKey];
                         const cellStyle = hasNote ? 'background: #fef3c7; cursor: pointer;' : '';
                         const noteIcon = hasNote ? ' 📝' : '';

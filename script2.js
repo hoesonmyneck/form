@@ -180,6 +180,23 @@ function renderDeclHeader() {
         <tr>${sub}${sub}</tr>`;
 }
 
+// План № 8 (внутренний plan9): вакансии. Плановый показатель разбит на два столбца.
+// Формат строки: [num, region, постоянные, временные, факт, коэф];
+// коэффициент = факт / (постоянные + временные) * 100.
+// Старый формат (5 эл.): [num, region, план, факт, коэф] — план уходит в «постоянные».
+const VAC_PLAN = 9;
+
+function isLegacyVacRow(rowData) {
+    return Array.isArray(rowData) && rowData.length <= 5;
+}
+
+// Номер столбца (data-col) с коэффициентом исполнения
+function getCoeffCol(planNum) {
+    if (planNum === 7) return 4;
+    if (planNum === VAC_PLAN) return 3;
+    return 2;
+}
+
 // Текущая дата по Астане (UTC+5) в формате "6 марта 2026"
 function getCurrentDateAstana() {
     const monthNames = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -302,6 +319,19 @@ function initializeTables() {
                 <td><input ${num} data-plan="7" data-row="${rr7}" data-col="3" oninput="calculateCoefficient(7,${rr7})"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},3)" title="Добавить примечание">📝</button></td>
                 <td><input ${num} data-plan="7" data-row="${rr7}" data-col="4" readonly style="background:#f3f4f6;cursor:not-allowed;"><button class="note-btn" onclick="showNoteModal('plan7',${rr7},4)" title="Добавить примечание">📝</button></td>`;
             }
+            if (i === VAC_PLAN) {
+                // Структура plan9: постоянные(0), временные(1), факт(2), коэф(3=readonly)
+                const rr9 = typeof rowIdx === 'number' ? rowIdx : 20;
+                let cellsHtml = `
+                <td style="text-align:center; font-weight:600;">${typeof rowIdx === 'number' ? rowIdx + 1 : '-'}</td>
+                <td>${regionCell}</td>`;
+                for (let c = 0; c < 3; c++) {
+                    cellsHtml += `
+                <td><input ${num} data-plan="${i}" data-row="${rr9}" data-col="${c}" oninput="calculateCoefficient(${i},${rr9})"><button class="note-btn" onclick="showNoteModal('plan${i}',${rr9},${c})" title="Добавить примечание">📝</button></td>`;
+                }
+                return cellsHtml + `
+                <td><input ${num} data-plan="${i}" data-row="${rr9}" data-col="3" readonly style="background:#f3f4f6;cursor:not-allowed;"><button class="note-btn" onclick="showNoteModal('plan${i}',${rr9},3)" title="Добавить примечание">📝</button></td>`;
+            }
             const ia = isText ? txt : num;
             const roCoefficient = 'readonly style="background:#f3f4f6;cursor:not-allowed;"';
             const oi = isText ? `oninput="calculateTotals(${i})"` : `oninput="calculateCoefficient(${i},${typeof rowIdx === 'number' ? rowIdx : 20})"`;
@@ -382,6 +412,7 @@ function applyColumnRestrictions() {
         tbody.querySelectorAll('tr').forEach((row) => {
             const inputs = row.querySelectorAll('input');
             const isP7 = (planNum === 7);
+            const isVac = (planNum === VAC_PLAN); // план 9: 2 плановых столбца, факт — третий
 
             // План 10: плановых показателей нет — все 4 поля вводит регион.
             // Регион правит только текущий месяц (data-col 4..7), прошлый (0..3) — только просмотр.
@@ -399,17 +430,19 @@ function applyColumnRestrictions() {
 
             if (role === 'viewer_p78') {
                 // Просмотр всех планов; на планах 7 и 8 (внутр. plan8 и plan9)
-                // разрешён ввод ТОЛЬКО «фактического» показателя (data-col="1").
+                // разрешён ввод ТОЛЬКО «фактического» показателя
+                // (plan8 — data-col="1", plan9 — data-col="2").
                 const canEditFact = (planNum === 8 || planNum === 9);
+                const factIdx = isVac ? 2 : 1;
                 inputs.forEach((inp, k) => {
-                    if (canEditFact && k === 1) return; // «факт» оставляем редактируемым
+                    if (canEditFact && k === factIdx) return; // «факт» оставляем редактируемым
                     lockInput(inp);
                 });
                 return;
             }
 
             if (role === 'viewer' || role === 'viewer_p7') {
-                const editCount = isP7 ? 4 : 2;
+                const editCount = isP7 ? 4 : (isVac ? 3 : 2);
                 for (let k = 0; k < editCount; k++) {
                     if (inputs[k]) lockInput(inputs[k]);
                 }
@@ -417,6 +450,8 @@ function applyColumnRestrictions() {
                 if (isP7) {
                     if (inputs[0]) lockInput(inputs[0]);
                     if (inputs[3]) lockInput(inputs[3]);
+                } else if (isVac) {
+                    if (inputs[2]) lockInput(inputs[2]);
                 } else {
                     if (inputs[1]) lockInput(inputs[1]);
                 }
@@ -425,6 +460,9 @@ function applyColumnRestrictions() {
                     if (inputs[0]) lockInput(inputs[0]);
                     if (inputs[1]) lockInput(inputs[1]);
                     if (inputs[2]) lockInput(inputs[2]);
+                } else if (isVac) {
+                    if (inputs[0]) lockInput(inputs[0]);
+                    if (inputs[1]) lockInput(inputs[1]);
                 } else {
                     if (inputs[0]) lockInput(inputs[0]);
                 }
@@ -505,7 +543,7 @@ function refreshCoefficientColorsAllPlans() {
     for (let planNum = 1; planNum <= 10; planNum++) {
         const tbody = document.getElementById(`plan${planNum}-tbody`);
         if (!tbody || planNum === DECL_PLAN) continue; // у плана 10 нет коэффициента
-        const coeffCol = planNum === 7 ? 4 : 2;
+        const coeffCol = getCoeffCol(planNum);
         const coeffInputs = tbody.querySelectorAll(`input[data-plan="${planNum}"][data-col="${coeffCol}"]`);
         coeffInputs.forEach(applyCoefficientCellColor);
     }
@@ -514,13 +552,14 @@ function refreshCoefficientColorsAllPlans() {
 // Расчет коэффициента исполнения
 // Для план 7: planned_pct=col2, actual_pct=col3, coeff=col4
 //             (col0=kol_del, col1=planned_qty — не участвуют в расчёте)
+// Для план 9: planned=col0+col1 (постоянные + временные), actual=col2, coeff=col3
 // Для остальных: planned=col0, actual=col1, coeff=col2
 function calculateCoefficient(planNum, rowIdx) {
     const recalcTotals = arguments.length > 2 ? !!arguments[2] : true;
 
     const pCol = planNum === 7 ? 2 : 0;
-    const aCol = planNum === 7 ? 3 : 1;
-    const cCol = planNum === 7 ? 4 : 2;
+    const aCol = planNum === 7 ? 3 : (planNum === VAC_PLAN ? 2 : 1);
+    const cCol = getCoeffCol(planNum);
     const plannedInput    = document.querySelector(`input[data-plan="${planNum}"][data-row="${rowIdx}"][data-col="${pCol}"]`);
     const actualInput     = document.querySelector(`input[data-plan="${planNum}"][data-row="${rowIdx}"][data-col="${aCol}"]`);
     const coefficientInput = document.querySelector(`input[data-plan="${planNum}"][data-row="${rowIdx}"][data-col="${cCol}"]`);
@@ -587,9 +626,14 @@ function calculateCoefficient(planNum, rowIdx) {
             applyCoefficientCellColor(coefficientInput);
         }
     } else {
-        const planned = parseFloat(plannedInput.value) || 0;
+        let planned = parseFloat(plannedInput.value) || 0;
+        if (planNum === VAC_PLAN) {
+            // План 9: плановый показатель = постоянные + временные вакансии
+            const tempInput = document.querySelector(`input[data-plan="${planNum}"][data-row="${rowIdx}"][data-col="1"]`);
+            planned += parseFloat(tempInput?.value) || 0;
+        }
         const actual = parseFloat(actualInput.value) || 0;
-        
+
         if (planned === 0) {
             coefficientInput.value = '';
             applyCoefficientCellColor(coefficientInput);
@@ -733,8 +777,29 @@ function calculateTotals(planNum) {
         if (totalInputs[4]) totalInputs[4].value = formatCoeff(coeff);
         if (totalInputs[4]) applyCoefficientCellColor(totalInputs[4]);
 
-    } else if (planNum === 3 || planNum === 9) {
-        // Планы 3 и 8 (абс. число): сумма (не среднее)
+    } else if (planNum === VAC_PLAN) {
+        // План 9 (отображается как 8): суммы по постоянным, временным и факту;
+        // коэффициент = факт / (постоянные + временные) * 100
+        let sumPerm = 0, sumTemp = 0, sumA = 0;
+
+        dataRows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            sumPerm += parseFloat(inputs[0]?.value) || 0;
+            sumTemp += parseFloat(inputs[1]?.value) || 0;
+            sumA    += parseFloat(inputs[2]?.value) || 0;
+        });
+
+        if (totalInputs[0]) totalInputs[0].value = sumPerm || '';
+        if (totalInputs[1]) totalInputs[1].value = sumTemp || '';
+        if (totalInputs[2]) totalInputs[2].value = sumA || '';
+
+        const sumP = sumPerm + sumTemp;
+        const coeff = clampToPercentRange(sumP > 0 ? (sumA / sumP) * 100 : 0);
+        if (totalInputs[3]) totalInputs[3].value = formatCoeff(coeff);
+        if (totalInputs[3]) applyCoefficientCellColor(totalInputs[3]);
+
+    } else if (planNum === 3) {
+        // План 3 (абс. число): сумма (не среднее)
         let sumP = 0, sumA = 0;
 
         dataRows.forEach(row => {
@@ -893,6 +958,9 @@ function restoreTableData(planId, data) {
                 // Старый (5 эл.): planned→planned_qty, без kol_del и planned_pct
                 values = ['', rowData[2], '', rowData[3], rowData[4]];
             }
+        } else if (planId === `plan${VAC_PLAN}` && isLegacyVacRow(rowData)) {
+            // Старый формат plan9: план → «постоянные», «временные» пустые
+            values = [rowData[2], '', rowData[3], rowData[4]];
         } else {
             values = rowData.slice(2);
         }
@@ -1005,8 +1073,16 @@ async function loadPlansFromServer() {
                 if (!m) continue;
                 const value = incomingNotes[key];
                 if (value === '' || value == null) continue;
-                notes[key] = value;
-                const [, planNum, rowIdx, colIdx] = m;
+                let [, planNum, rowIdx, colIdx] = m;
+                let noteKey = key;
+                // План 9: у строк старого формата примечания к факту (1) и коэф. (2)
+                // сдвигаются на столбец вправо — вслед за новым столбцом «временные».
+                if (Number(planNum) === VAC_PLAN && Number(colIdx) >= 1
+                    && isLegacyVacRow(result.plans[`plan${VAC_PLAN}`]?.[rowIdx])) {
+                    colIdx = String(Number(colIdx) + 1);
+                    noteKey = `plan${planNum}_${rowIdx}_${colIdx}`;
+                }
+                notes[noteKey] = value;
                 const input = document.querySelector(`input[data-plan="${planNum}"][data-row="${rowIdx}"][data-col="${colIdx}"]`);
                 if (input) {
                     const btn = input.nextElementSibling;
@@ -1144,9 +1220,9 @@ function sortByCoefficient(planId, headerTh) {
     const totalRow = rows.find(r => r.querySelector('td:first-child')?.textContent.trim() === '-');
     const dataRows = rows.filter(r => r !== totalRow);
 
-    // Коэффициент: план 7 → col 4, остальные → col 2
+    // Коэффициент: план 7 → col 4, план 9 → col 3, остальные → col 2
     const planNum = parseInt(planId.replace('plan', ''), 10);
-    const coeffCol = planNum === 7 ? 4 : 2;
+    const coeffCol = getCoeffCol(planNum);
 
     dataRows.sort((a, b) => {
         const aVal = parseCoeffVal(a.querySelector(`input[data-col="${coeffCol}"]`)?.value);

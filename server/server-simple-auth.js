@@ -2053,6 +2053,90 @@ function buildPlan8TableXml(planData) {
     </w:tbl>`;
 }
 
+// План 9 (отображается как № 8): вакансии, плановый показатель разбит на два столбца.
+// Структура строки: [num, region, постоянные, временные, факт, коэф];
+// старый формат (5 эл.): [num, region, план, факт, коэф] — план идёт в «постоянные».
+function buildPlan9TableXml(planData) {
+    const esc = s => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    const colW = [400, 2900, 1700, 1700, 1900, 1700];
+    const totalW = colW.reduce((a, b) => a + b, 0);
+
+    // extra — gridSpan / vMerge для объединённых ячеек шапки
+    const tcProp = (w, extra = '') => `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${extra}
+          <w:tcBorders>
+            <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+            <w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          </w:tcBorders>
+          <w:vAlign w:val="center"/>
+        </w:tcPr>`;
+
+    const cell = (text, w, { bold = false, center = true, extra = '' } = {}) => {
+        const jc = center ? '<w:jc w:val="center"/>' : '<w:jc w:val="left"/>';
+        const rpr = bold ? '<w:rPr><w:b/><w:bCs/></w:rPr>' : '<w:rPr/>';
+        return `<w:tc>${tcProp(w, extra)}
+          <w:p><w:pPr>${jc}<w:spacing w:before="60" w:after="60"/>
+          </w:pPr><w:r>${rpr}<w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p>
+        </w:tc>`;
+    };
+
+    const vStart = '<w:vMerge w:val="restart"/>';
+    const vCont = '<w:vMerge/>';
+
+    const headerRow = '<w:tr>'
+        + cell('№', colW[0], { bold: true, extra: vStart })
+        + cell('Территориальные департаменты КРиКСЗН', colW[1], { bold: true, extra: vStart })
+        + cell('Плановый показатель', colW[2] + colW[3], { bold: true, extra: '<w:gridSpan w:val="2"/>' })
+        + cell('Фактический показатель (абс. число)', colW[4], { bold: true, extra: vStart })
+        + cell('Коэффициент исполнения (%)', colW[5], { bold: true, extra: vStart })
+        + '</w:tr><w:tr>'
+        + cell('', colW[0], { extra: vCont })
+        + cell('', colW[1], { extra: vCont })
+        + cell('постоянных вакансий (абс. число)', colW[2], { bold: true })
+        + cell('временных вакансий (абс. число)', colW[3], { bold: true })
+        + cell('', colW[4], { extra: vCont })
+        + cell('', colW[5], { extra: vCont })
+        + '</w:tr>';
+
+    let dataRows = '';
+    planData.forEach((row, idx) => {
+        const isTotal = row[0] === '-' || String(row[1] || '').trim() === 'Всего';
+        const num = isTotal ? '-' : String(idx + 1);
+        const values = row.length > 5
+            ? [row[2], row[3], row[4], row[5]]
+            : [row[2], '', row[3], row[4]];
+        dataRows += '<w:tr>'
+            + cell(num,    colW[0], { bold: isTotal, center: true })
+            + cell(row[1], colW[1], { bold: isTotal, center: false })
+            + values.map((v, i) => cell(v, colW[i + 2], { bold: isTotal, center: true })).join('')
+            + '</w:tr>';
+    });
+
+    const gridCols = colW.map(w => `<w:gridCol w:w="${w}"/>`).join('');
+
+    return `<w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="${totalW}" w:type="dxa"/>
+        <w:tblBorders>
+          <w:top    w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:left   w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:right  w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+          <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+        </w:tblBorders>
+        <w:tblLook w:val="04A0"/>
+      </w:tblPr>
+      <w:tblGrid>${gridCols}</w:tblGrid>
+      ${headerRow}
+      ${dataRows}
+    </w:tbl>`;
+}
+
 // План 10 (отображается как № 9): декларации строительных объектов.
 // Данные за 2 месяца (прошлый и текущий), строка с клиента:
 // [num, region, prevKey, p0..p3, curKey, c0..c3]; ключ месяца — 'YYYY-MM'.
@@ -2260,6 +2344,15 @@ app.post('/api/plans/download', authenticateToken, async (req, res) => {
         } else if (planNumber === 8) {
             // Для план 8 (отображ. № 7) — таблица с доп. столбцом «Оценка»
             const newTableXml = buildPlan8TableXml(planData);
+            const tblMatch = docXml.match(/<w:tbl[\s\S]*?<\/w:tbl>/);
+            if (tblMatch) {
+                docXml = docXml.replace(tblMatch[0], newTableXml);
+            }
+            docXml = docXml.replace(/\{#rows\}[\s\S]*?\{\/rows\}/g, '');
+            docXml = docXml.replace(/\{totalPlanned\}|\{totalActual\}|\{totalCoefficient\}/g, '');
+        } else if (planNumber === 9) {
+            // Для план 9 (отображ. № 8) — плановый показатель в двух столбцах (постоянные / временные)
+            const newTableXml = buildPlan9TableXml(planData);
             const tblMatch = docXml.match(/<w:tbl[\s\S]*?<\/w:tbl>/);
             if (tblMatch) {
                 docXml = docXml.replace(tblMatch[0], newTableXml);
